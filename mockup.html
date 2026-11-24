@@ -1,0 +1,2292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Protonarchy — Interactive Omarchy Plugin Mockup</title>
+<style>
+  :root {
+    --bg: #0a1621;
+    --bar-bg: rgba(10, 22, 33, 0.72);
+    --bar-blur: 14px;
+    --popup-bg: #0a1621;
+    --fg: #cbd8da;
+    --dim: #73909e;
+    --accent: #4fc3c7;
+    --urgent: #c0563d;
+    --ok: #7fb894;
+    --warn: #d3a061;
+    --border: #4fc3c7;
+    --border-gradient: linear-gradient(135deg, #4fc3c7ee, #9fd8c0ee, #f0895aee);
+    --radius: 14px;
+    --wallpaper:
+      radial-gradient(ellipse 60% 50% at 18% 26%, rgba(79, 195, 199, 0.24) 0%, transparent 62%),
+      radial-gradient(ellipse 55% 48% at 78% 68%, rgba(240, 137, 90, 0.22) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 40% at 52% 40%, rgba(159, 216, 192, 0.12) 0%, transparent 58%),
+      radial-gradient(circle at 50% 50%, #0e1f2f 0%, #07111a 60%, #050c13 100%);
+    --font: "JetBrainsMono Nerd Font", "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --normal-fill: color-mix(in srgb, var(--fg) 4%, transparent);
+    --hover-fill: color-mix(in srgb, var(--fg) 8%, transparent);
+    --selected-fill: color-mix(in srgb, var(--accent) 18%, transparent);
+    --normal-border: color-mix(in srgb, var(--fg) 22%, transparent);
+    --hover-border: color-mix(in srgb, var(--fg) 38%, transparent);
+    --sep: color-mix(in srgb, var(--fg) 12%, transparent);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: #0d0f14;
+    color: var(--fg);
+    font-family: var(--font);
+    font-size: 12px;
+    overflow: hidden;
+    user-select: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Simulated Hyprland Desktop */
+  .desktop {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    background: var(--wallpaper);
+    transition: background 220ms ease;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Subtle Hyprland grid/grain texture */
+  .desktop::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(color-mix(in srgb, var(--fg) 3%, transparent) 1px, transparent 1px),
+      linear-gradient(90deg, color-mix(in srgb, var(--fg) 3%, transparent) 1px, transparent 1px);
+    background-size: 44px 44px;
+    pointer-events: none;
+    opacity: 0.55;
+  }
+
+  /* ===================== OMARCHY TOP BAR ===================== */
+  .omarchy-bar {
+    position: relative;
+    z-index: 30;
+    height: 30px;
+    background: var(--bar-bg);
+    backdrop-filter: blur(var(--bar-blur));
+    -webkit-backdrop-filter: blur(var(--bar-blur));
+    border-bottom: 1px solid color-mix(in srgb, var(--fg) 12%, transparent);
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    padding: 0 10px;
+    font-size: 12px;
+    color: var(--fg);
+  }
+
+  .bar-left, .bar-center, .bar-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .bar-center { justify-content: center; gap: 10px; }
+  .bar-right { justify-content: flex-end; gap: 2px; }
+
+  .bar-btn {
+    height: 22px;
+    padding: 0 7px;
+    border-radius: calc(var(--radius) * 0.7);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--fg);
+    cursor: pointer;
+    border: 1px solid transparent;
+    background: transparent;
+    font-family: inherit;
+    font-size: 11.5px;
+    transition: background 110ms ease, transform 90ms ease, color 120ms ease;
+    position: relative;
+  }
+  .bar-btn:hover { background: var(--hover-fill); }
+  .bar-btn:active { transform: scale(0.95); }
+  .bar-btn.active-panel {
+    background: var(--selected-fill);
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+
+  .ws-pills { display: flex; gap: 3px; margin-left: 4px; }
+  .ws-pill {
+    width: 18px; height: 18px;
+    display: grid; place-items: center;
+    border-radius: calc(var(--radius) * 0.55);
+    font-size: 10.5px;
+    color: var(--dim);
+  }
+  .ws-pill.active {
+    background: var(--selected-fill);
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .bar-clock { font-weight: 600; letter-spacing: 0.2px; }
+  .bar-muted { color: var(--dim); }
+
+  /* Proton Bar Widget */
+  #proton-bar-btn {
+    padding: 0 8px;
+    gap: 5px;
+  }
+  #proton-bar-btn .country-label {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    color: var(--fg);
+  }
+  #proton-bar-btn.is-connecting svg {
+    animation: pulse-op 0.9s ease-in-out infinite;
+  }
+  @keyframes pulse-op {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+
+  /* Bar hover tooltip */
+  .bar-tooltip {
+    position: fixed;
+    top: 34px;
+    right: 76px;
+    z-index: 60;
+    background: var(--popup-bg);
+    color: var(--fg);
+    border: 1px solid color-mix(in srgb, var(--fg) 40%, transparent);
+    border-radius: var(--radius);
+    padding: 7px 10px;
+    font-size: 11px;
+    line-height: 1.45;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.45);
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(-3px);
+    transition: opacity 120ms ease, transform 120ms ease;
+    white-space: pre-line;
+  }
+  .bar-tooltip.visible { opacity: 1; transform: translateY(0); }
+
+  /* ===================== KEYBOARD PANEL POPUP ===================== */
+  .panel-backdrop {
+    position: fixed;
+    inset: 28px 0 0 0;
+    z-index: 20;
+    pointer-events: none;
+  }
+  .panel-backdrop.open { pointer-events: auto; }
+
+  .keyboard-panel {
+    position: fixed;
+    top: 36px; /* barThickness(30) + gapsOut(6) */
+    right: 10px;
+    z-index: 40;
+    width: 408px;
+    max-height: calc(100vh - 48px);
+    background:
+      linear-gradient(var(--popup-bg), var(--popup-bg)) padding-box,
+      var(--border-gradient) border-box;
+    border: 2px solid transparent;
+    border-radius: var(--radius);
+    box-shadow: 0 18px 50px rgba(3, 10, 18, 0.72);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transform-origin: 84% 0%;
+    opacity: 0;
+    transform: scale(0.97);
+    pointer-events: none;
+    transition: opacity 170ms cubic-bezier(0.22, 1, 0.36, 1),
+                transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .keyboard-panel.open {
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: auto;
+  }
+
+  /* Hero Header */
+  .panel-hero {
+    padding: 13px 14px 11px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .hero-icon {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+  .hero-labels {
+    flex: 1;
+    min-width: 0;
+  }
+  .hero-title-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .hero-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--fg);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hero-detail-pill {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--dim);
+    border: 1px solid var(--normal-border);
+    border-radius: calc(var(--radius) * 0.6);
+    padding: 1px 6px;
+    flex-shrink: 0;
+  }
+  .hero-detail-pill.accent {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+  .hero-meta {
+    margin-top: 2px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Omarchy ToggleSwitch */
+  .toggle-switch {
+    position: relative;
+    width: 42px;
+    height: 22px;
+    border-radius: 999px;
+    background: var(--normal-fill);
+    border: 1px solid var(--normal-border);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 120ms ease, border-color 120ms ease;
+  }
+  .toggle-switch.sharp { border-radius: 2px; }
+  .toggle-switch.checked {
+    background: var(--selected-fill);
+    border-color: var(--accent);
+  }
+  .toggle-switch::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    background: var(--dim);
+    transition: transform 130ms cubic-bezier(0.22, 1, 0.36, 1), background 120ms ease;
+  }
+  .toggle-switch.sharp::after { border-radius: 1px; }
+  .toggle-switch.checked::after {
+    transform: translateX(20px);
+    background: var(--accent);
+  }
+  .toggle-switch.sm {
+    width: 34px;
+    height: 18px;
+  }
+  .toggle-switch.sm::after {
+    width: 12px;
+    height: 12px;
+  }
+  .toggle-switch.sm.checked::after {
+    transform: translateX(16px);
+  }
+
+  /* Tab Bar */
+  .tab-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    padding: 0 12px 10px;
+    border-bottom: 1px solid var(--sep);
+  }
+  .tab-btn {
+    height: 26px;
+    border-radius: calc(var(--radius) * 0.75);
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--dim);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    transition: background 110ms ease, color 110ms ease, border-color 110ms ease;
+  }
+  .tab-btn:hover { background: var(--hover-fill); color: var(--fg); }
+  .tab-btn.active {
+    background: var(--selected-fill);
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    color: var(--accent);
+  }
+  .tab-key {
+    font-size: 9.5px;
+    opacity: 0.6;
+  }
+
+  /* Panel Body */
+  .panel-body {
+    padding: 12px 14px 14px;
+    overflow-y: auto;
+    max-height: 495px;
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--normal-border) transparent;
+  }
+
+  .section-header {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.9px;
+    color: var(--dim);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .sep {
+    height: 1px;
+    background: var(--sep);
+    margin: 2px 0;
+  }
+
+  /* Cards & Surfaces */
+  .surface-card {
+    background: var(--normal-fill);
+    border: 1px solid var(--normal-border);
+    border-radius: var(--radius);
+    padding: 10px 11px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .alert-banner {
+    background: color-mix(in srgb, var(--urgent) 13%, transparent);
+    border: 1px solid color-mix(in srgb, var(--urgent) 55%, transparent);
+    border-radius: var(--radius);
+    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: var(--fg);
+    font-size: 11px;
+  }
+  .alert-banner.info {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+
+  /* Telemetry Grid */
+  .tele-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .tele-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .tele-ip {
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.2px;
+  }
+  .tele-speed {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 8px;
+    padding-top: 6px;
+    border-top: 1px solid var(--sep);
+    font-size: 11px;
+    color: var(--dim);
+  }
+  .tele-speed strong { color: var(--fg); font-weight: 600; }
+
+  /* Load indicator */
+  .load-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10.5px;
+    color: var(--dim);
+  }
+  .load-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--ok);
+    flex-shrink: 0;
+  }
+  .load-dot.med { background: var(--warn); }
+  .load-dot.high { background: var(--urgent); }
+
+  /* Badges */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 5px;
+    border-radius: calc(var(--radius) * 0.55);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    background: var(--hover-fill);
+    border: 1px solid var(--normal-border);
+    color: var(--dim);
+  }
+  .badge.accent {
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+    color: var(--accent);
+  }
+  .badge.ok {
+    background: color-mix(in srgb, var(--ok) 15%, transparent);
+    border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+    color: var(--ok);
+  }
+  .badge.urgent {
+    background: color-mix(in srgb, var(--urgent) 16%, transparent);
+    border-color: color-mix(in srgb, var(--urgent) 50%, transparent);
+    color: var(--urgent);
+  }
+
+  /* Buttons & Action Chips */
+  .btn {
+    height: 28px;
+    padding: 0 10px;
+    border-radius: calc(var(--radius) * 0.75);
+    border: 1px solid var(--normal-border);
+    background: var(--normal-fill);
+    color: var(--fg);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    transition: background 110ms ease, border-color 110ms ease, transform 90ms ease;
+  }
+  .btn:hover { background: var(--hover-fill); border-color: var(--hover-border); }
+  .btn:active { transform: scale(0.97); }
+  .btn.primary {
+    background: var(--selected-fill);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .btn.primary:hover { background: color-mix(in srgb, var(--accent) 26%, transparent); }
+  .btn.danger {
+    border-color: color-mix(in srgb, var(--urgent) 50%, transparent);
+    color: var(--urgent);
+  }
+  .btn.danger:hover {
+    background: color-mix(in srgb, var(--urgent) 18%, transparent);
+    border-color: var(--urgent);
+  }
+  .btn.sm { height: 23px; padding: 0 7px; font-size: 10.5px; }
+
+  .icon-action {
+    width: 23px;
+    height: 23px;
+    border-radius: calc(var(--radius) * 0.65);
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--dim);
+    display: inline-grid;
+    place-items: center;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12px;
+    transition: background 100ms ease, color 100ms ease;
+    flex-shrink: 0;
+  }
+  .icon-action:hover { background: var(--hover-fill); color: var(--fg); }
+  .icon-action.starred { color: var(--warn); }
+  .icon-action.urgent:hover { background: color-mix(in srgb, var(--urgent) 20%, transparent); color: var(--urgent); }
+
+  /* Quick Action Chips & Segmented ButtonGroup */
+  .chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  .chip {
+    height: 24px;
+    padding: 0 8px;
+    border-radius: calc(var(--radius) * 0.7);
+    border: 1px solid var(--normal-border);
+    background: var(--normal-fill);
+    color: var(--dim);
+    font-family: inherit;
+    font-size: 10.5px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 110ms ease;
+  }
+  .chip:hover { background: var(--hover-fill); color: var(--fg); }
+  .chip.active {
+    background: var(--selected-fill);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .btn-group {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: 4px;
+  }
+  .btn-group .seg-btn {
+    height: 26px;
+    border-radius: calc(var(--radius) * 0.7);
+    border: 1px solid var(--normal-border);
+    background: var(--normal-fill);
+    color: var(--dim);
+    font-family: inherit;
+    font-size: 10.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 110ms ease;
+  }
+  .btn-group .seg-btn:hover { background: var(--hover-fill); color: var(--fg); }
+  .btn-group .seg-btn.active {
+    background: var(--selected-fill);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .btn-group .seg-btn.active-urgent {
+    background: color-mix(in srgb, var(--urgent) 18%, transparent);
+    border-color: var(--urgent);
+    color: var(--urgent);
+  }
+
+  /* Interactive List Rows (CursorSurface style) */
+  .list-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .panel-row {
+    min-height: 34px;
+    padding: 6px 8px;
+    border-radius: calc(var(--radius) * 0.75);
+    border: 1px solid transparent;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    cursor: pointer;
+    transition: background 100ms ease, border-color 100ms ease;
+  }
+  .panel-row:hover {
+    background: var(--hover-fill);
+    border-color: color-mix(in srgb, var(--fg) 16%, transparent);
+  }
+  .panel-row.connected {
+    background: var(--selected-fill);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  .row-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+  }
+  .row-code {
+    width: 24px;
+    height: 20px;
+    border-radius: calc(var(--radius) * 0.5);
+    background: var(--normal-fill);
+    border: 1px solid var(--normal-border);
+    display: grid;
+    place-items: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--fg);
+    flex-shrink: 0;
+  }
+  .row-text {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .row-title {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--fg);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .row-sub {
+    font-size: 10px;
+    color: var(--dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .row-right {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+  }
+
+  /* Search Input */
+  .search-box {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: 30px;
+    padding: 0 9px;
+    border-radius: calc(var(--radius) * 0.75);
+    border: 1px solid var(--normal-border);
+    background: var(--normal-fill);
+    transition: border-color 120ms ease, background 120ms ease;
+  }
+  .search-box:focus-within {
+    border-color: var(--accent);
+    background: var(--hover-fill);
+  }
+  .search-box input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--fg);
+    font-family: inherit;
+    font-size: 11.5px;
+  }
+  .search-box input::placeholder { color: var(--dim); }
+
+  /* Form / Setting Rows */
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 4px 2px;
+  }
+  .setting-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .setting-title { font-size: 11.5px; font-weight: 600; color: var(--fg); }
+  .setting-desc { font-size: 10px; color: var(--dim); }
+
+  select.omarchy-select {
+    height: 26px;
+    padding: 0 8px;
+    border-radius: calc(var(--radius) * 0.7);
+    border: 1px solid var(--normal-border);
+    background: var(--popup-bg);
+    color: var(--fg);
+    font-family: inherit;
+    font-size: 11px;
+    outline: none;
+    cursor: pointer;
+  }
+  select.omarchy-select:focus { border-color: var(--accent); }
+
+  .text-input {
+    width: 100%;
+    height: 30px;
+    padding: 0 9px;
+    border-radius: calc(var(--radius) * 0.7);
+    border: 1px solid var(--normal-border);
+    background: var(--normal-fill);
+    color: var(--fg);
+    font-family: inherit;
+    font-size: 11.5px;
+    outline: none;
+  }
+  .text-input:focus { border-color: var(--accent); }
+
+  /* Breadcrumb */
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  /* Footer keyboard hint bar */
+  .panel-footer {
+    border-top: 1px solid var(--sep);
+    padding: 7px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--dim);
+    background: color-mix(in srgb, var(--fg) 2%, transparent);
+  }
+  .kbd {
+    padding: 1px 4px;
+    border-radius: 3px;
+    border: 1px solid var(--normal-border);
+    background: var(--normal-fill);
+    color: var(--fg);
+    font-size: 9.5px;
+  }
+
+  /* Confirm Dialog Overlay inside panel */
+  .dialog-scrim {
+    position: absolute;
+    inset: 0;
+    background: color-mix(in srgb, var(--bar-bg) 78%, transparent);
+    backdrop-filter: blur(3px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    z-index: 50;
+  }
+  .dialog-scrim.open { display: flex; }
+  .confirm-dialog {
+    width: 100%;
+    background: var(--popup-bg);
+    border: 2px solid var(--urgent);
+    border-radius: var(--radius);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 14px 36px rgba(0,0,0,0.6);
+  }
+  .confirm-dialog h3 { font-size: 13px; color: var(--urgent); }
+  .confirm-dialog p { font-size: 11px; color: var(--fg); line-height: 1.5; }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 18px;
+    right: 18px;
+    z-index: 80;
+    background: var(--popup-bg);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    font-size: 11px;
+    color: var(--fg);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+    opacity: 0;
+    transform: translateY(6px);
+    pointer-events: none;
+    transition: opacity 150ms ease, transform 150ms ease;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  /* ===================== DEMO CONTROLS DOCK (bottom-left of desktop) ===================== */
+  .demo-dock {
+    position: fixed;
+    bottom: 18px;
+    left: 18px;
+    z-index: 25;
+    width: 390px;
+    max-width: calc(100vw - 440px);
+    background: color-mix(in srgb, var(--popup-bg) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--normal-border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .demo-dock h2 {
+    font-size: 12px;
+    color: var(--fg);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .demo-dock p {
+    font-size: 10.5px;
+    color: var(--dim);
+    line-height: 1.45;
+  }
+  .demo-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  @media (max-width: 860px) {
+    .demo-dock { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="desktop" id="desktop">
+
+  <!-- ===================== OMARCHY TOP BAR ===================== -->
+  <header class="omarchy-bar">
+    <div class="bar-left">
+      <button class="bar-btn" title="Omarchy Menu">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+          <rect x="2" y="2" width="12" height="12" rx="2.5" stroke="currentColor" stroke-width="1.6"/>
+          <circle cx="8" cy="8" r="2.2" fill="currentColor"/>
+        </svg>
+      </button>
+      <div class="ws-pills">
+        <span class="ws-pill active">1</span>
+        <span class="ws-pill">2</span>
+        <span class="ws-pill">3</span>
+        <span class="ws-pill">4</span>
+      </div>
+    </div>
+
+    <div class="bar-center">
+      <span class="bar-clock" id="bar-clock">Tue 24 Nov 7:48 AM</span>
+      <span class="bar-muted">·</span>
+      <span class="bar-muted">14°C</span>
+    </div>
+
+    <div class="bar-right">
+      <button class="bar-btn bar-muted" title="System Tray">▾</button>
+      <button class="bar-btn bar-muted" title="Keyboard Layout">US</button>
+      <button class="bar-btn bar-muted" title="Bluetooth">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M5 4.5L11 11.5L8 14V2L11 4.5L5 11.5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="bar-btn bar-muted" title="Network (omarchy.network)">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2.5 6.5C5.6 3.8 10.4 3.8 13.5 6.5M4.8 9.2C6.6 7.7 9.4 7.7 11.2 9.2M7.2 12H8.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+
+      <!-- PROTON VPN TOP-RIGHT BAR WIDGET -->
+      <button class="bar-btn active-panel" id="proton-bar-btn" aria-label="Proton VPN">
+        <span class="country-label" id="bar-country-code">CH</span>
+        <span id="bar-icon-slot"></span>
+      </button>
+
+      <button class="bar-btn bar-muted" title="Audio (omarchy.audio)">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 6.5H6L9.5 3.5V12.5L6 9.5H3V6.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M11.8 5.8C12.7 6.8 12.7 9.2 11.8 10.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      </button>
+      <button class="bar-btn bar-muted" title="Power (omarchy.power)">86%</button>
+    </div>
+  </header>
+
+  <div class="bar-tooltip" id="bar-tooltip"></div>
+
+  <!-- Outside click dismiss backdrop -->
+  <div class="panel-backdrop open" id="panel-backdrop"></div>
+
+  <!-- ===================== PROTON VPN KEYBOARD PANEL ===================== -->
+  <section class="keyboard-panel open" id="keyboard-panel" role="dialog" aria-label="Proton VPN Panel">
+    <!-- Hero -->
+    <div class="panel-hero">
+      <div class="hero-icon" id="hero-icon-slot"></div>
+      <div class="hero-labels">
+        <div class="hero-title-row">
+          <span class="hero-title" id="hero-title">CH#12</span>
+          <span class="hero-detail-pill accent" id="hero-pill">WG</span>
+        </div>
+        <div class="hero-meta" id="hero-meta">ZURICH, SWITZERLAND · PROTECTED</div>
+      </div>
+      <button class="toggle-switch checked" id="hero-toggle" title="Toggle VPN (t)"></button>
+    </div>
+
+    <!-- 4-Tab Bar -->
+    <nav class="tab-bar" id="tab-bar">
+      <button class="tab-btn active" data-tab="home"><span class="tab-key">1</span>Home</button>
+      <button class="tab-btn" data-tab="servers"><span class="tab-key">2</span>Servers</button>
+      <button class="tab-btn" data-tab="settings"><span class="tab-key">3</span>Settings</button>
+      <button class="tab-btn" data-tab="account"><span class="tab-key">4</span>Account</button>
+    </nav>
+
+    <!-- Active Tab Content -->
+    <div class="panel-body" id="panel-body"></div>
+
+    <!-- Compact Keyboard Hint Footer -->
+    <footer class="panel-footer" id="panel-footer">
+      <span><span class="kbd">1-4</span> tabs · <span class="kbd">/</span> search · <span class="kbd">t</span> toggle</span>
+      <span><span class="kbd">c</span> IP · <span class="kbd">p</span> port · <span class="kbd">esc</span></span>
+    </footer>
+
+    <!-- Omarchy ConfirmDialog -->
+    <div class="dialog-scrim" id="dialog-scrim">
+      <div class="confirm-dialog">
+        <h3 id="dialog-title">Confirm</h3>
+        <p id="dialog-body"></p>
+        <div style="display:flex; justify-content:flex-end; gap:6px; margin-top:4px;">
+          <button class="btn sm" id="dialog-cancel">Cancel</button>
+          <button class="btn sm danger" id="dialog-confirm">Confirm</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== INTERACTIVE MOCKUP CONTROLS ===================== -->
+  <aside class="demo-dock">
+    <h2>
+      <span>Protonarchy — Live Mockup</span>
+      <span class="badge accent">by pl0xuee</span>
+    </h2>
+    <p>
+      <code>pl0xuee.protonarchy</code> · Left-click the top-right bar icon to open/close, right-click to quick-toggle, hover for tooltip, or press <span class="kbd">1</span>–<span class="kbd">4</span>, <span class="kbd">/</span>, <span class="kbd">t</span>, <span class="kbd">c</span>, <span class="kbd">p</span>, <span class="kbd">Esc</span>.
+    </p>
+    <div class="section-header">Omarchy Theme</div>
+    <div class="demo-row" id="theme-buttons"></div>
+    <div class="section-header">Simulate State</div>
+    <div class="demo-row" id="state-buttons">
+      <button class="chip active" data-sim="connected">Connected (P2P)</button>
+      <button class="chip" data-sim="securecore">Secure Core</button>
+      <button class="chip" data-sim="connecting">Connecting…</button>
+      <button class="chip" data-sim="disconnected">Disconnected</button>
+      <button class="chip" data-sim="ksblock">Permanent KS</button>
+      <button class="chip" data-sim="signedout">Signed Out</button>
+    </div>
+  </aside>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+const THEMES = {
+  "Nebula (Yours)": {
+    bg: "#0a1621", barBg: "rgba(10, 22, 33, 0.72)", barBlur: "14px", popupBg: "#0a1621",
+    fg: "#cbd8da", dim: "#73909e", accent: "#4fc3c7", urgent: "#c0563d", ok: "#7fb894", warn: "#d3a061",
+    border: "#4fc3c7", borderGradient: "linear-gradient(135deg, #4fc3c7ee, #9fd8c0ee, #f0895aee)", radius: "14px",
+    wp: "radial-gradient(ellipse 60% 50% at 18% 26%, rgba(79, 195, 199, 0.24) 0%, transparent 62%), radial-gradient(ellipse 55% 48% at 78% 68%, rgba(240, 137, 90, 0.22) 0%, transparent 60%), radial-gradient(ellipse 40% 40% at 52% 40%, rgba(159, 216, 192, 0.12) 0%, transparent 58%), radial-gradient(circle at 50% 50%, #0e1f2f 0%, #07111a 60%, #050c13 100%)"
+  },
+  "Tokyo Night": {
+    bg: "#1a1b26", barBg: "#16161e", barBlur: "0px", popupBg: "#1a1b26", fg: "#c0caf5", dim: "#737aa2",
+    accent: "#7aa2f7", urgent: "#f7768e", ok: "#9ece6a", warn: "#e0af68", border: "#7aa2f7", borderGradient: "linear-gradient(135deg, #7aa2f7, #7aa2f7)", radius: "6px",
+    wp: "radial-gradient(circle at 22% 28%, #292e42 0%, #1a1b26 50%, #10121a 100%)"
+  },
+  "Catppuccin": {
+    bg: "#1e1e2e", barBg: "#181825", barBlur: "0px", popupBg: "#1e1e2e", fg: "#cdd6f4", dim: "#7f849c",
+    accent: "#cba6f7", urgent: "#f38ba8", ok: "#a6e3a1", warn: "#f9e2af", border: "#cba6f7", borderGradient: "linear-gradient(135deg, #cba6f7, #89b4fa)", radius: "8px",
+    wp: "radial-gradient(circle at 26% 24%, #313244 0%, #1e1e2e 52%, #11111b 100%)"
+  },
+  "Latte (Light)": {
+    bg: "#eff1f5", barBg: "rgba(230, 233, 239, 0.85)", barBlur: "12px", popupBg: "#eff1f5", fg: "#4c4f69", dim: "#6c6f85",
+    accent: "#1e66f5", urgent: "#d20f39", ok: "#40a02b", warn: "#df8e1d", border: "#1e66f5", borderGradient: "linear-gradient(135deg, #1e66f5, #8839ef)", radius: "8px",
+    wp: "radial-gradient(circle at 24% 25%, #dce0e8 0%, #eff1f5 55%, #ccd0da 100%)"
+  },
+  "Matte Black": {
+    bg: "#101315", barBg: "#0b0d0f", barBlur: "0px", popupBg: "#101315", fg: "#cacccc", dim: "#707880",
+    accent: "#e6edf3", urgent: "#d95b5b", ok: "#6ec47f", warn: "#d8a657", border: "#485058", borderGradient: "linear-gradient(135deg, #485058, #485058)", radius: "0px",
+    wp: "radial-gradient(circle at 25% 30%, #1b1f24 0%, #101315 55%, #07090b 100%)"
+  },
+  "Nord": {
+    bg: "#2e3440", barBg: "#242933", barBlur: "0px", popupBg: "#2e3440", fg: "#eceff4", dim: "#9aa5b8",
+    accent: "#88c0d0", urgent: "#bf616a", ok: "#a3be8c", warn: "#ebcb8b", border: "#88c0d0", borderGradient: "linear-gradient(135deg, #88c0d0, #81a1c1)", radius: "5px",
+    wp: "radial-gradient(circle at 20% 25%, #3b4252 0%, #2e3440 55%, #1d222b 100%)"
+  },
+  "Gruvbox": {
+    bg: "#282828", barBg: "#1d2021", barBlur: "0px", popupBg: "#282828", fg: "#ebdbb2", dim: "#a89984",
+    accent: "#fabd2f", urgent: "#fb4934", ok: "#b8bb26", warn: "#fe8019", border: "#fabd2f", borderGradient: "linear-gradient(135deg, #fabd2f, #fe8019)", radius: "3px",
+    wp: "radial-gradient(circle at 25% 25%, #3c3836 0%, #282828 55%, #1d2021 100%)"
+  }
+};
+
+const COUNTRIES = [
+  {
+    code: "CH", name: "Switzerland", load: 18, score: 1.2, features: ["SC", "P2P", "TOR", "STR", "IPv6"],
+    secureCore: [
+      { name: "IS-CH#1", entry: "IS", entryName: "Iceland", load: 16, features: ["SC", "STR"] },
+      { name: "SE-CH#2", entry: "SE", entryName: "Sweden", load: 21, features: ["SC", "STR"] }
+    ],
+    cities: [
+      {
+        name: "Zurich", load: 18, servers: [
+          { name: "CH#12", load: 18, ip: "185.159.157.42", features: ["P2P", "STR", "IPv6"] },
+          { name: "CH#14", load: 27, ip: "185.159.157.88", features: ["P2P", "STR", "IPv6"] },
+          { name: "CH#29", load: 61, ip: "185.159.158.11", features: ["TOR", "STR"] }
+        ]
+      },
+      {
+        name: "Geneva", load: 24, servers: [
+          { name: "CH#41", load: 24, ip: "185.159.159.19", features: ["P2P", "STR"] },
+          { name: "CH#45", load: 49, ip: "185.159.159.73", features: ["STR", "IPv6"] }
+        ]
+      }
+    ]
+  },
+  {
+    code: "US", name: "United States", load: 22, score: 1.0, features: ["SC", "P2P", "TOR", "STR", "IPv6"],
+    secureCore: [
+      { name: "CH-US#1", entry: "CH", entryName: "Switzerland", load: 29, features: ["SC", "STR"] },
+      { name: "IS-US#2", entry: "IS", entryName: "Iceland", load: 24, features: ["SC", "STR"] }
+    ],
+    cities: [
+      {
+        name: "New York", load: 22, servers: [
+          { name: "US-NY#42", load: 22, ip: "149.102.228.14", features: ["P2P", "STR", "IPv6"] },
+          { name: "US-NY#58", load: 54, ip: "149.102.228.91", features: ["STR", "IPv6"] }
+        ]
+      },
+      {
+        name: "Seattle", load: 19, servers: [
+          { name: "US-WA#11", load: 19, ip: "149.102.230.40", features: ["P2P", "STR", "IPv6"] }
+        ]
+      }
+    ]
+  },
+  {
+    code: "IS", name: "Iceland", load: 14, score: 1.5, features: ["SC", "P2P", "STR"],
+    secureCore: [
+      { name: "CH-IS#1", entry: "CH", entryName: "Switzerland", load: 14, features: ["SC"] }
+    ],
+    cities: [
+      {
+        name: "Reykjavik", load: 14, servers: [
+          { name: "IS#3", load: 14, ip: "185.159.158.120", features: ["P2P", "STR"] },
+          { name: "IS#9", load: 31, ip: "185.159.158.144", features: ["P2P"] }
+        ]
+      }
+    ]
+  },
+  {
+    code: "NL", name: "Netherlands", load: 29, score: 1.3, features: ["SC", "P2P", "STR", "IPv6"],
+    secureCore: [
+      { name: "CH-NL#1", entry: "CH", entryName: "Switzerland", load: 25, features: ["SC", "STR"] }
+    ],
+    cities: [
+      {
+        name: "Amsterdam", load: 29, servers: [
+          { name: "NL#18", load: 29, ip: "146.70.114.62", features: ["P2P", "STR", "IPv6"] },
+          { name: "NL#88", load: 88, ip: "146.70.114.99", features: ["P2P", "STR"] }
+        ]
+      }
+    ]
+  },
+  {
+    code: "DE", name: "Germany", load: 33, score: 1.4, features: ["SC", "P2P", "TOR", "STR", "IPv6"],
+    secureCore: [
+      { name: "CH-DE#1", entry: "CH", entryName: "Switzerland", load: 28, features: ["SC", "STR"] }
+    ],
+    cities: [
+      {
+        name: "Frankfurt", load: 33, servers: [
+          { name: "DE#104", load: 33, ip: "194.126.177.21", features: ["P2P", "STR", "IPv6"] },
+          { name: "DE#108", load: 42, ip: "194.126.177.45", features: ["TOR", "STR"] }
+        ]
+      }
+    ]
+  },
+  {
+    code: "JP", name: "Japan", load: 37, score: 2.1, features: ["SC", "P2P", "STR", "IPv6"],
+    secureCore: [
+      { name: "CH-JP#1", entry: "CH", entryName: "Switzerland", load: 35, features: ["SC", "STR"] }
+    ],
+    cities: [
+      {
+        name: "Tokyo", load: 37, servers: [
+          { name: "JP#21", load: 37, ip: "138.199.21.18", features: ["P2P", "STR", "IPv6"] }
+        ]
+      }
+    ]
+  },
+  {
+    code: "GB", name: "United Kingdom", load: 41, score: 1.6, features: ["SC", "P2P", "STR", "IPv6"],
+    secureCore: [
+      { name: "IS-UK#1", entry: "IS", entryName: "Iceland", load: 30, features: ["SC", "STR"] }
+    ],
+    cities: [
+      {
+        name: "London", load: 41, servers: [
+          { name: "UK#64", load: 41, ip: "185.195.233.15", features: ["P2P", "STR", "IPv6"] }
+        ]
+      }
+    ]
+  }
+];
+
+const state = {
+  theme: "Nebula (Yours)",
+  open: true,
+  tab: "home",
+  subSheet: null, // "split" | "dns" | null
+  signedIn: true,
+  authStep: "credentials", // "credentials" | "2fa"
+  connState: "connected", // "connected" | "connecting" | "disconnected"
+  server: {
+    name: "CH#12", countryCode: "CH", country: "Switzerland", city: "Zurich",
+    entryCountry: null, load: 18, ip: "185.159.157.42", features: ["P2P", "STR", "IPv6"],
+    forwardedPort: 54321
+  },
+  uptimeSec: 5058,
+  rxMBs: 4.2,
+  txKBs: 310,
+  settings: {
+    protocol: "wireguard",
+    killswitch: "standard", // "off" | "standard" | "permanent"
+    netshield: "ads",       // "off" | "malware" | "ads"
+    vpnAccelerator: true,
+    moderateNat: false,
+    portForwarding: true,
+    ipv6: true,
+    customDns: false,
+    dnsList: ["1.1.1.1", "9.9.9.9"],
+    splitTunnel: false,
+    splitMode: "exclude",
+    splitApps: ["/usr/bin/steam", "/usr/bin/obs"],
+    splitIps: ["192.168.1.0/24"],
+    showCountryCode: true,
+    bandwidthPolling: true,
+    requiresReconnect: false
+  },
+  favorites: [
+    { key: "CH#12", label: "CH#12 · Zurich", sub: "Switzerland · P2P", countryCode: "CH", city: "Zurich", serverName: "CH#12" },
+    { key: "CH-US#1", label: "Switzerland → US", sub: "Secure Core · CH-US#1", countryCode: "US", city: null, serverName: "CH-US#1", entryCountry: "Switzerland" }
+  ],
+  recents: [
+    { label: "New York, US", sub: "US-NY#42 · 22% load", countryCode: "US", city: "New York", serverName: "US-NY#42" },
+    { label: "Reykjavik, IS", sub: "IS#3 · 14% load", countryCode: "IS", city: "Reykjavik", serverName: "IS#3" }
+  ],
+  serverQuery: "",
+  featureFilter: "all",
+  serverSort: "alpha",
+  drillCountry: null,
+  drillCity: null
+};
+
+const $ = (sel) => document.querySelector(sel);
+
+function protonShieldSvg(size, { connected, connecting, secureCore, warning, locked }) {
+  const stroke = connected ? "var(--accent)" : "currentColor";
+  const opacity = connected || connecting ? "1" : "0.52";
+  return `
+    <svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" style="display:block; opacity:${opacity}">
+      <path d="M12 2.4L4.2 5.6V11.6C4.2 16.5 7.5 20.4 12 22C16.5 20.4 19.8 16.5 19.8 11.6V5.6L12 2.4Z"
+        stroke="${stroke}" stroke-width="2" stroke-linejoin="round"
+        fill="${connected ? 'color-mix(in srgb, var(--accent) 18%, transparent)' : 'none'}"/>
+      ${secureCore && connected ? `<path d="M12 6.2L7.4 8.2V11.6C7.4 14.5 9.4 16.9 12 17.9C14.6 16.9 16.6 14.5 16.6 11.6V8.2L12 6.2Z" stroke="var(--accent)" stroke-width="1.5" stroke-linejoin="round"/>` :
+        `<path d="M8.6 11.8L11.1 14.3L15.8 9.4" stroke="${connected ? 'var(--accent)' : 'currentColor'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="${connected ? '1' : '0.35'}"/>`}
+      ${!connected && !connecting && !warning && !locked ? `<line x1="4" y1="20" x2="20" y2="4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>` : ""}
+      ${(warning || locked) ? `<circle cx="19" cy="18.5" r="4.6" fill="var(--urgent)" stroke="var(--popup-bg)" stroke-width="1.6"/>
+        <text x="19" y="21.3" text-anchor="middle" fill="var(--popup-bg)" font-size="7.5" font-weight="800">${locked ? '×' : '!'}</text>` : ""}
+    </svg>
+  `;
+}
+
+function showToast(msg) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => t.classList.remove("show"), 2000);
+}
+
+function openDialog(title, body, onConfirm) {
+  $("#dialog-title").textContent = title;
+  $("#dialog-body").textContent = body;
+  $("#dialog-scrim").classList.add("open");
+  $("#dialog-confirm").onclick = () => {
+    $("#dialog-scrim").classList.remove("open");
+    onConfirm();
+  };
+  $("#dialog-cancel").onclick = () => $("#dialog-scrim").classList.remove("open");
+}
+
+function applyTheme(name) {
+  state.theme = name;
+  const t = THEMES[name];
+  const r = document.documentElement.style;
+  r.setProperty("--bg", t.bg);
+  r.setProperty("--bar-bg", t.barBg);
+  r.setProperty("--bar-blur", t.barBlur || "0px");
+  r.setProperty("--popup-bg", t.popupBg);
+  r.setProperty("--fg", t.fg);
+  r.setProperty("--dim", t.dim);
+  r.setProperty("--accent", t.accent);
+  r.setProperty("--urgent", t.urgent);
+  r.setProperty("--ok", t.ok);
+  r.setProperty("--warn", t.warn);
+  r.setProperty("--border", t.border);
+  r.setProperty("--border-gradient", t.borderGradient || `linear-gradient(135deg, ${t.border}, ${t.border})`);
+  r.setProperty("--radius", t.radius);
+  r.setProperty("--wallpaper", t.wp);
+  renderThemeButtons();
+  renderAll();
+}
+
+function formatDuration(sec) {
+  const h = String(Math.floor(sec / 3600)).padStart(2, "0");
+  const m = String(Math.floor((sec % 3600) / 60)).padStart(2, "0");
+  const s = String(sec % 60).padStart(2, "0");
+  return `${h}:${m}:${s}`;
+}
+
+function loadClass(load) {
+  return load >= 80 ? "high" : load >= 50 ? "med" : "";
+}
+
+function protocolLabel(p) {
+  return {
+    "wireguard": "WireGuard",
+    "protun-smart": "Smart",
+    "protun-tls": "Stealth",
+    "openvpn-udp": "OpenVPN UDP",
+    "openvpn-tcp": "OpenVPN TCP"
+  }[p] || p;
+}
+
+function protocolShort(p) {
+  return {
+    "wireguard": "WG",
+    "protun-smart": "SMART",
+    "protun-tls": "STEALTH",
+    "openvpn-udp": "OVPN",
+    "openvpn-tcp": "OVPN"
+  }[p] || "VPN";
+}
+
+function connectTo(target) {
+  if (!state.signedIn) {
+    state.tab = "account";
+    renderAll();
+    showToast("Sign in to connect");
+    return;
+  }
+  state.connState = "connecting";
+  state.settings.requiresReconnect = false;
+  renderAll();
+  clearTimeout(connectTo._t);
+  connectTo._t = setTimeout(() => {
+    state.connState = "connected";
+    state.uptimeSec = 0;
+    const isP2P = (target.features || []).includes("P2P");
+    state.server = {
+      name: target.serverName || target.name || "CH#12",
+      countryCode: target.countryCode || "CH",
+      country: target.country || "Switzerland",
+      city: target.city || "Zurich",
+      entryCountry: target.entryCountry || null,
+      load: target.load || 19,
+      ip: target.ip || "185.159.157.42",
+      features: target.features || ["P2P", "STR", "IPv6"],
+      forwardedPort: (state.settings.portForwarding && isP2P) ? (40000 + Math.floor(Math.random() * 20000)) : null
+    };
+    renderAll();
+    showToast(`Connected to ${state.server.name}`);
+  }, 550);
+}
+
+function disconnectVpn() {
+  clearTimeout(connectTo._t);
+  state.connState = "disconnected";
+  state.settings.requiresReconnect = false;
+  renderAll();
+  showToast("Disconnected from Proton VPN");
+}
+
+function toggleConnection() {
+  if (state.connState === "connected" || state.connState === "connecting") disconnectVpn();
+  else connectTo(state.server);
+}
+
+function renderBarAndHero() {
+  const connected = state.connState === "connected";
+  const connecting = state.connState === "connecting";
+  const ksBlocked = !connected && state.settings.killswitch === "permanent";
+  const warning = !state.signedIn;
+  const secureCore = !!state.server.entryCountry;
+
+  const barBtn = $("#proton-bar-btn");
+  barBtn.classList.toggle("active-panel", state.open);
+  barBtn.classList.toggle("is-connecting", connecting);
+
+  const cc = $("#bar-country-code");
+  cc.style.display = (connected && state.settings.showCountryCode) ? "inline" : "none";
+  cc.textContent = state.server.countryCode;
+
+  $("#bar-icon-slot").innerHTML = protonShieldSvg(14, { connected, connecting, secureCore, warning, locked: ksBlocked });
+
+  // Tooltip
+  const tip = $("#bar-tooltip");
+  if (!state.signedIn) {
+    tip.textContent = "Proton VPN — Sign in required";
+  } else if (connected) {
+    const loc = secureCore ? `${state.server.entryCountry} → ${state.server.country}` : `${state.server.city}, ${state.server.country}`;
+    const portLine = state.server.forwardedPort ? ` · Port ${state.server.forwardedPort}` : "";
+    tip.textContent = `Proton VPN — Connected\n${state.server.name} · ${loc} (${state.server.load}%)\nIP: ${state.server.ip} · ${protocolLabel(state.settings.protocol)}${portLine}`;
+  } else if (connecting) {
+    tip.textContent = `Proton VPN — Connecting to ${state.server.name}…`;
+  } else if (ksBlocked) {
+    tip.textContent = "Proton VPN — Disconnected\nPermanent Kill Switch blocking internet";
+  } else {
+    tip.textContent = "Proton VPN — Disconnected\nLeft-click: Panel · Right-click: Quick Connect";
+  }
+
+  // Hero
+  $("#hero-icon-slot").innerHTML = protonShieldSvg(32, { connected, connecting, secureCore, warning, locked: ksBlocked });
+  const pill = $("#hero-pill");
+  const toggle = $("#hero-toggle");
+  const isSharp = THEMES[state.theme].radius === "0px";
+  toggle.classList.toggle("sharp", isSharp);
+  toggle.style.display = state.signedIn ? "block" : "none";
+  toggle.classList.toggle("checked", connected || connecting);
+
+  if (!state.signedIn) {
+    $("#hero-title").textContent = "Protonarchy";
+    $("#hero-meta").textContent = "PROTON VPN · SIGN IN REQUIRED";
+    pill.textContent = "AUTH";
+    pill.className = "hero-detail-pill";
+  } else if (connected) {
+    $("#hero-title").textContent = state.server.name;
+    const loc = secureCore ? `${state.server.entryCountry} → ${state.server.country}` : `${state.server.city}, ${state.server.country}`;
+    $("#hero-meta").textContent = `${loc} · PROTECTED`;
+    pill.textContent = secureCore ? "SC · " + protocolShort(state.settings.protocol) : protocolShort(state.settings.protocol);
+    pill.className = "hero-detail-pill accent";
+  } else if (connecting) {
+    $("#hero-title").textContent = "Connecting…";
+    $("#hero-meta").textContent = `${state.server.name} · HANDSHAKING`;
+    pill.textContent = protocolShort(state.settings.protocol);
+    pill.className = "hero-detail-pill";
+  } else {
+    $("#hero-title").textContent = "Protonarchy";
+    $("#hero-meta").textContent = ksBlocked ? "PERMANENT KILL SWITCH BLOCKING" : "PROTON VPN · DISCONNECTED";
+    pill.textContent = ksBlocked ? "LOCKED" : "OFF";
+    pill.className = "hero-detail-pill";
+  }
+
+  // Tabs
+  document.querySelectorAll(".tab-btn").forEach((b) => {
+    b.classList.toggle("active", b.dataset.tab === state.tab);
+  });
+}
+
+function renderHome() {
+  const connected = state.connState === "connected";
+  const ksBlocked = !connected && state.settings.killswitch === "permanent";
+  const secureCore = !!state.server.entryCountry;
+  const nsLabel = { off: "Off", malware: "Malware", ads: "Ads+Trackers" }[state.settings.netshield];
+  const ksLabel = { off: "Off", standard: "Standard", permanent: "Permanent" }[state.settings.killswitch];
+
+  let html = "";
+
+  if (!state.signedIn) {
+    html += `
+      <div class="alert-banner info">
+        <span>Sign in to your Proton account to connect.</span>
+        <button class="btn sm primary" id="go-signin">Sign In</button>
+      </div>
+    `;
+  }
+
+  if (ksBlocked && state.signedIn) {
+    html += `
+      <div class="alert-banner">
+        <span>Permanent Kill Switch is blocking all traffic.</span>
+        <button class="btn sm danger" id="disable-perm-ks">Turn Off</button>
+      </div>
+    `;
+  }
+
+  if (connected && state.settings.requiresReconnect) {
+    html += `
+      <div class="alert-banner info">
+        <span>Settings changed — reconnect to apply.</span>
+        <button class="btn sm primary" id="reconnect-btn">Reconnect</button>
+      </div>
+    `;
+  }
+
+  if (connected && state.signedIn) {
+    const loc = secureCore
+      ? `${state.server.entryCountry} → ${state.server.country}`
+      : `${state.server.city}, ${state.server.country}`;
+    html += `
+      <div class="surface-card">
+        <div class="tele-row">
+          <div class="tele-meta">
+            <span class="badge accent">${state.server.countryCode}</span>
+            <span style="font-weight:700">${loc}</span>
+          </div>
+          <span class="load-wrap">
+            <span class="load-dot ${loadClass(state.server.load)}"></span>
+            ${state.server.load}%
+          </span>
+        </div>
+        <div class="tele-row">
+          <div class="tele-meta">
+            <span class="bar-muted">VPN IP</span>
+            <span class="tele-ip">${state.server.ip}</span>
+            ${state.settings.ipv6 ? `<span class="badge">IPv6</span>` : ""}
+          </div>
+          <button class="icon-action" id="copy-ip-btn" title="Copy VPN IP (c)">⧉</button>
+        </div>
+        <div class="tele-row">
+          <div class="tele-meta">
+            <span class="badge">${protocolLabel(state.settings.protocol)}</span>
+            ${state.server.forwardedPort
+              ? `<span class="badge ok">Port ${state.server.forwardedPort}</span>`
+              : (state.settings.portForwarding ? `<span class="badge">No P2P port</span>` : "")}
+          </div>
+          ${state.server.forwardedPort
+            ? `<button class="icon-action" id="copy-port-btn" title="Copy Forwarded Port (p)">⧉</button>`
+            : ""}
+        </div>
+        ${state.settings.bandwidthPolling ? `
+        <div class="tele-speed">
+          <span>↓ <strong id="rx-val">${state.rxMBs.toFixed(1)} MB/s</strong></span>
+          <span>↑ <strong id="tx-val">${state.txKBs} KB/s</strong></span>
+          <span id="uptime-val">${formatDuration(state.uptimeSec)}</span>
+        </div>` : ""}
+      </div>
+    `;
+  }
+
+  // Quick Actions
+  html += `
+    <div class="chip-row">
+      <button class="btn sm primary" id="quick-connect-btn" style="flex:1">
+        ${connected ? "Reconnect Fastest" : "Quick Connect"}
+      </button>
+      <button class="btn sm" id="quick-p2p">P2P</button>
+      <button class="btn sm" id="quick-sc">Secure Core</button>
+      <button class="btn sm" id="quick-random">Random</button>
+    </div>
+  `;
+
+  // Live Security Strip
+  html += `
+    <div class="section-header"><span>Live Protection</span><span>Click to adjust</span></div>
+    <div class="chip-row">
+      <button class="chip ${state.settings.netshield !== 'off' ? 'active' : ''}" id="pill-ns">NetShield: ${nsLabel}</button>
+      <button class="chip ${state.settings.killswitch !== 'off' ? 'active' : ''}" id="pill-ks">Kill Switch: ${ksLabel}</button>
+      <button class="chip ${state.settings.splitTunnel ? 'active' : ''}" id="pill-st">Split: ${state.settings.splitTunnel ? state.settings.splitMode : 'Off'}</button>
+    </div>
+  `;
+
+  // Favorites & Recents
+  html += `<div class="sep"></div><div class="section-header"><span>Favorites</span><span>${state.favorites.length}</span></div>`;
+  html += `<div class="list-stack">`;
+  state.favorites.forEach((f, idx) => {
+    const isCur = connected && state.server.name === f.serverName;
+    html += `
+      <div class="panel-row ${isCur ? 'connected' : ''}" data-fav="${idx}">
+        <div class="row-left">
+          <span class="row-code">${f.countryCode}</span>
+          <div class="row-text">
+            <span class="row-title">${f.label}</span>
+            <span class="row-sub">${f.sub}</span>
+          </div>
+        </div>
+        <div class="row-right">
+          ${isCur ? `<span class="badge accent">Active</span>` : `<span class="badge">Connect</span>`}
+        </div>
+      </div>
+    `;
+  });
+  html += `</div>`;
+
+  html += `<div class="section-header" style="margin-top:2px;"><span>Recent</span></div><div class="list-stack">`;
+  state.recents.forEach((r, idx) => {
+    html += `
+      <div class="panel-row" data-recent="${idx}">
+        <div class="row-left">
+          <span class="row-code">${r.countryCode}</span>
+          <div class="row-text">
+            <span class="row-title">${r.label}</span>
+            <span class="row-sub">${r.sub}</span>
+          </div>
+        </div>
+        <div class="row-right"><span class="bar-muted">▸</span></div>
+      </div>
+    `;
+  });
+  html += `</div>`;
+
+  const body = $("#panel-body");
+  body.innerHTML = html;
+
+  // Bindings
+  body.querySelector("#go-signin")?.addEventListener("click", () => { state.tab = "account"; renderAll(); });
+  body.querySelector("#disable-perm-ks")?.addEventListener("click", () => { state.settings.killswitch = "off"; renderAll(); showToast("Kill Switch disabled"); });
+  body.querySelector("#reconnect-btn")?.addEventListener("click", () => connectTo(state.server));
+  body.querySelector("#copy-ip-btn")?.addEventListener("click", () => copyVal(state.server.ip, "VPN IP"));
+  body.querySelector("#copy-port-btn")?.addEventListener("click", () => copyVal(String(state.server.forwardedPort), "Forwarded Port"));
+  body.querySelector("#quick-connect-btn")?.addEventListener("click", () => connectTo({ serverName: "CH#12", countryCode: "CH", country: "Switzerland", city: "Zurich", load: 18, ip: "185.159.157.42", features: ["P2P", "STR", "IPv6"] }));
+  body.querySelector("#quick-p2p")?.addEventListener("click", () => connectTo({ serverName: "NL#18", countryCode: "NL", country: "Netherlands", city: "Amsterdam", load: 29, ip: "146.70.114.62", features: ["P2P", "STR", "IPv6"] }));
+  body.querySelector("#quick-sc")?.addEventListener("click", () => connectTo({ serverName: "CH-US#1", countryCode: "US", country: "United States", city: "New York", entryCountry: "Switzerland", load: 29, ip: "149.102.228.5", features: ["SC", "STR"] }));
+  body.querySelector("#quick-random")?.addEventListener("click", () => {
+    const c = COUNTRIES[Math.floor(Math.random() * COUNTRIES.length)];
+    const city = c.cities[0];
+    const s = city.servers[0];
+    connectTo({ serverName: s.name, countryCode: c.code, country: c.name, city: city.name, load: s.load, ip: s.ip, features: s.features });
+  });
+  body.querySelector("#pill-ns")?.addEventListener("click", () => {
+    const order = ["off", "malware", "ads"];
+    state.settings.netshield = order[(order.indexOf(state.settings.netshield) + 1) % order.length];
+    renderAll();
+    showToast(`NetShield applied live: ${state.settings.netshield}`);
+  });
+  body.querySelector("#pill-ks")?.addEventListener("click", () => { state.tab = "settings"; renderAll(); });
+  body.querySelector("#pill-st")?.addEventListener("click", () => { state.tab = "settings"; state.subSheet = "split"; renderAll(); });
+
+  body.querySelectorAll("[data-fav]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const f = state.favorites[Number(el.dataset.fav)];
+      connectTo({ serverName: f.serverName, countryCode: f.countryCode, country: f.countryCode === "CH" ? "Switzerland" : "United States", city: f.city || "New York", entryCountry: f.entryCountry || null, load: 19, features: ["P2P", "STR"] });
+    });
+  });
+  body.querySelectorAll("[data-recent]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const r = state.recents[Number(el.dataset.recent)];
+      connectTo({ serverName: r.serverName, countryCode: r.countryCode, country: r.countryCode === "US" ? "United States" : "Iceland", city: r.city, load: 20, features: ["P2P", "STR"] });
+    });
+  });
+}
+
+function renderServers() {
+  const body = $("#panel-body");
+  const q = state.serverQuery.trim().toLowerCase();
+  const f = state.featureFilter;
+
+  let html = `
+    <div class="search-box">
+      <span class="bar-muted">/</span>
+      <input id="server-search" type="text" placeholder="Search country, city, or server (e.g. US-NY#42)…" value="${state.serverQuery.replace(/"/g, '&quot;')}">
+      ${q ? `<button class="icon-action" id="clear-search" title="Clear">×</button>` : ""}
+    </div>
+    <div class="chip-row" style="justify-content:space-between; align-items:center;">
+      <div class="chip-row">
+        ${[["all","All"],["SC","Secure Core"],["P2P","P2P"],["TOR","Tor"],["STR","Streaming"]].map(([id, lbl]) =>
+          `<button class="chip ${f === id ? 'active' : ''}" data-filter="${id}">${lbl}</button>`
+        ).join("")}
+      </div>
+      <button class="chip" id="sort-toggle" title="Cycle sort order">${state.serverSort === "alpha" ? "A-Z" : state.serverSort === "fastest" ? "Fastest" : "Load"}</button>
+    </div>
+  `;
+
+  if (q) {
+    // Direct search mode
+    const matchedServers = [];
+    COUNTRIES.forEach((c) => {
+      c.cities.forEach((city) => {
+        city.servers.forEach((s) => {
+          const hay = `${c.code} ${c.name} ${city.name} ${s.name}`.toLowerCase();
+          if (hay.includes(q) && (f === "all" || s.features.includes(f))) {
+            matchedServers.push({ c, city, s });
+          }
+        });
+      });
+    });
+    html += `<div class="section-header"><span>Matches</span><span>${matchedServers.length} servers</span></div>`;
+    html += `<div class="list-stack">`;
+    if (matchedServers.length === 0) {
+      html += `<div class="surface-card" style="color:var(--dim); text-align:center;">No servers match "${q}".</div>`;
+    } else {
+      matchedServers.forEach(({ c, city, s }) => {
+        const isCur = state.connState === "connected" && state.server.name === s.name;
+        html += `
+          <div class="panel-row ${isCur ? 'connected' : ''}" data-connect-srv="${c.code}|${city.name}|${s.name}">
+            <div class="row-left">
+              <span class="row-code">${c.code}</span>
+              <div class="row-text">
+                <span class="row-title">${s.name} · ${city.name}</span>
+                <span class="row-sub">${c.name} · ${s.features.join(" · ")}</span>
+              </div>
+            </div>
+            <div class="row-right">
+              <span class="load-wrap"><span class="load-dot ${loadClass(s.load)}"></span>${s.load}%</span>
+            </div>
+          </div>
+        `;
+      });
+    }
+    html += `</div>`;
+  } else if (state.drillCountry && state.drillCity) {
+    const c = COUNTRIES.find((x) => x.code === state.drillCountry);
+    const city = c.cities.find((x) => x.name === state.drillCity);
+    html += `
+      <div class="breadcrumb">
+        <button class="btn sm" id="drill-up">← ${c.name} / ${city.name}</button>
+        <button class="btn sm primary" id="connect-city-fastest">Fastest</button>
+      </div>
+      <div class="list-stack">
+    `;
+    city.servers.forEach((s) => {
+      const isCur = state.connState === "connected" && state.server.name === s.name;
+      const isFav = state.favorites.some((fav) => fav.serverName === s.name);
+      html += `
+        <div class="panel-row ${isCur ? 'connected' : ''}" data-connect-srv="${c.code}|${city.name}|${s.name}">
+          <div class="row-left">
+            <div class="row-text">
+              <span class="row-title">${s.name}</span>
+              <span class="row-sub">${s.features.join(" · ")}</span>
+            </div>
+          </div>
+          <div class="row-right">
+            <span class="load-wrap"><span class="load-dot ${loadClass(s.load)}"></span>${s.load}%</span>
+            <button class="icon-action ${isFav ? 'starred' : ''}" data-star="${c.code}|${city.name}|${s.name}" title="Favorite (f)">${isFav ? '★' : '☆'}</button>
+          </div>
+        </div>
+      `;
+    });
+    html += `</div>`;
+  } else if (state.drillCountry) {
+    const c = COUNTRIES.find((x) => x.code === state.drillCountry);
+    html += `
+      <div class="breadcrumb">
+        <button class="btn sm" id="drill-up">← All Countries</button>
+        <button class="btn sm primary" id="connect-country-fastest">Fastest in ${c.code}</button>
+      </div>
+    `;
+    if (c.secureCore.length) {
+      html += `<div class="section-header"><span>Via Secure Core</span><span>Multi-hop</span></div><div class="list-stack">`;
+      c.secureCore.forEach((sc) => {
+        html += `
+          <div class="panel-row" data-connect-sc="${c.code}|${sc.entryName}|${sc.name}|${sc.load}">
+            <div class="row-left">
+              <span class="row-code">${sc.entry}</span>
+              <div class="row-text">
+                <span class="row-title">${sc.entryName} → ${c.name}</span>
+                <span class="row-sub">${sc.name} · Double-hop encrypted</span>
+              </div>
+            </div>
+            <div class="row-right">
+              <span class="load-wrap"><span class="load-dot ${loadClass(sc.load)}"></span>${sc.load}%</span>
+            </div>
+          </div>
+        `;
+      });
+      html += `</div>`;
+    }
+    html += `<div class="section-header"><span>Cities in ${c.name}</span></div><div class="list-stack">`;
+    c.cities.forEach((city) => {
+      html += `
+        <div class="panel-row" data-drill-city="${city.name}">
+          <div class="row-left">
+            <div class="row-text">
+              <span class="row-title">${city.name}</span>
+              <span class="row-sub">${city.servers.length} servers · best load ${city.load}%</span>
+            </div>
+          </div>
+          <div class="row-right">
+            <span class="load-wrap"><span class="load-dot ${loadClass(city.load)}"></span>${city.load}%</span>
+            <span class="bar-muted">▸</span>
+          </div>
+        </div>
+      `;
+    });
+    html += `</div>`;
+  } else {
+    let list = COUNTRIES.filter((c) => f === "all" || c.features.includes(f));
+    if (state.serverSort === "alpha") list = [...list].sort((a, b) => a.name.localeCompare(b.name));
+    else if (state.serverSort === "fastest") list = [...list].sort((a, b) => a.score - b.score);
+    else list = [...list].sort((a, b) => a.load - b.load);
+
+    html += `<div class="section-header"><span>Countries</span><span>${list.length} available</span></div><div class="list-stack">`;
+    list.forEach((c) => {
+      const isCur = state.connState === "connected" && state.server.countryCode === c.code;
+      html += `
+        <div class="panel-row ${isCur ? 'connected' : ''}" data-drill-country="${c.code}">
+          <div class="row-left">
+            <span class="row-code">${c.code}</span>
+            <div class="row-text">
+              <span class="row-title">${c.name}</span>
+              <span class="row-sub">${c.cities.length} ${c.cities.length === 1 ? 'city' : 'cities'} · ${c.features.slice(0, 4).join(" · ")}</span>
+            </div>
+          </div>
+          <div class="row-right">
+            <span class="load-wrap"><span class="load-dot ${loadClass(c.load)}"></span>${c.load}%</span>
+            <button class="btn sm" data-quick-cc="${c.code}" title="Connect fastest in ${c.name}">Go</button>
+            <span class="bar-muted">▸</span>
+          </div>
+        </div>
+      `;
+    });
+    html += `</div>`;
+  }
+
+  body.innerHTML = html;
+
+  const searchInput = body.querySelector("#server-search");
+  if (searchInput) {
+    searchInput.addEventListener("input", (e) => {
+      state.serverQuery = e.target.value;
+      renderServers();
+      const el = $("#server-search");
+      if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+    });
+  }
+  body.querySelector("#clear-search")?.addEventListener("click", () => { state.serverQuery = ""; renderServers(); });
+  body.querySelectorAll("[data-filter]").forEach((btn) => {
+    btn.addEventListener("click", () => { state.featureFilter = btn.dataset.filter; renderServers(); });
+  });
+  body.querySelector("#sort-toggle")?.addEventListener("click", () => {
+    const order = ["alpha", "fastest", "load"];
+    state.serverSort = order[(order.indexOf(state.serverSort) + 1) % order.length];
+    renderServers();
+  });
+  body.querySelector("#drill-up")?.addEventListener("click", () => {
+    if (state.drillCity) state.drillCity = null;
+    else state.drillCountry = null;
+    renderServers();
+  });
+  body.querySelector("#connect-country-fastest")?.addEventListener("click", () => {
+    const c = COUNTRIES.find((x) => x.code === state.drillCountry);
+    const s = c.cities[0].servers[0];
+    connectTo({ serverName: s.name, countryCode: c.code, country: c.name, city: c.cities[0].name, load: s.load, ip: s.ip, features: s.features });
+  });
+  body.querySelector("#connect-city-fastest")?.addEventListener("click", () => {
+    const c = COUNTRIES.find((x) => x.code === state.drillCountry);
+    const city = c.cities.find((x) => x.name === state.drillCity);
+    const s = city.servers[0];
+    connectTo({ serverName: s.name, countryCode: c.code, country: c.name, city: city.name, load: s.load, ip: s.ip, features: s.features });
+  });
+  body.querySelectorAll("[data-quick-cc]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const c = COUNTRIES.find((x) => x.code === btn.dataset.quickCc);
+      const s = c.cities[0].servers[0];
+      connectTo({ serverName: s.name, countryCode: c.code, country: c.name, city: c.cities[0].name, load: s.load, ip: s.ip, features: s.features });
+    });
+  });
+  body.querySelectorAll("[data-drill-country]").forEach((row) => {
+    row.addEventListener("click", () => { state.drillCountry = row.dataset.drillCountry; state.drillCity = null; renderServers(); });
+  });
+  body.querySelectorAll("[data-drill-city]").forEach((row) => {
+    row.addEventListener("click", () => { state.drillCity = row.dataset.drillCity; renderServers(); });
+  });
+  body.querySelectorAll("[data-connect-sc]").forEach((row) => {
+    row.addEventListener("click", () => {
+      const [cc, entryName, name, load] = row.dataset.connectSc.split("|");
+      const c = COUNTRIES.find((x) => x.code === cc);
+      connectTo({ serverName: name, countryCode: cc, country: c.name, city: c.cities[0].name, entryCountry: entryName, load: Number(load), ip: "185.159.156.9", features: ["SC", "STR"] });
+    });
+  });
+  body.querySelectorAll("[data-connect-srv]").forEach((row) => {
+    row.addEventListener("click", () => {
+      const [cc, cityName, srvName] = row.dataset.connectSrv.split("|");
+      const c = COUNTRIES.find((x) => x.code === cc);
+      const city = c.cities.find((x) => x.name === cityName);
+      const s = city.servers.find((x) => x.name === srvName);
+      connectTo({ serverName: s.name, countryCode: c.code, country: c.name, city: city.name, load: s.load, ip: s.ip, features: s.features });
+    });
+  });
+  body.querySelectorAll("[data-star]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const [cc, cityName, srvName] = btn.dataset.star.split("|");
+      const idx = state.favorites.findIndex((x) => x.serverName === srvName);
+      if (idx >= 0) { state.favorites.splice(idx, 1); showToast(`Removed ${srvName} from Favorites`); }
+      else {
+        const c = COUNTRIES.find((x) => x.code === cc);
+        state.favorites.push({ key: srvName, label: `${srvName} · ${cityName}`, sub: `${c.name}`, countryCode: cc, city: cityName, serverName: srvName });
+        showToast(`Pinned ${srvName} to Favorites`);
+      }
+      renderServers();
+    });
+  });
+}
+
+function renderSettings() {
+  const body = $("#panel-body");
+  const s = state.settings;
+  const sharp = THEMES[state.theme].radius === "0px" ? "sharp" : "";
+
+  if (state.subSheet === "split") {
+    body.innerHTML = `
+      <div class="breadcrumb">
+        <button class="btn sm" id="sheet-back">← Settings</button>
+        <span class="badge ok">proton.VPN.service OK</span>
+      </div>
+      <div class="setting-row">
+        <div class="setting-label">
+          <span class="setting-title">Split Tunneling (eBPF)</span>
+          <span class="setting-desc">Requires Kill Switch to be Off</span>
+        </div>
+        <button class="toggle-switch sm ${sharp} ${s.splitTunnel ? 'checked' : ''}" id="st-enable"></button>
+      </div>
+      <div class="btn-group">
+        <button class="seg-btn ${s.splitMode === 'exclude' ? 'active' : ''}" data-st-mode="exclude">Exclude from VPN</button>
+        <button class="seg-btn ${s.splitMode === 'include' ? 'active' : ''}" data-st-mode="include">Include only</button>
+      </div>
+      <div class="section-header"><span>Applications (${s.splitApps.length})</span></div>
+      <div class="list-stack">
+        ${s.splitApps.map((p, i) => `
+          <div class="panel-row" style="cursor:default">
+            <span class="row-title" style="font-size:11px">${p}</span>
+            <button class="icon-action urgent" data-rm-app="${i}" title="Remove">×</button>
+          </div>
+        `).join("")}
+      </div>
+      <div style="display:flex; gap:6px;">
+        <input class="text-input" id="new-app-path" placeholder="/usr/bin/app-name">
+        <button class="btn sm primary" id="add-app-btn">Add</button>
+      </div>
+      <div class="section-header"><span>IP / CIDR Ranges (${s.splitIps.length})</span></div>
+      <div class="list-stack">
+        ${s.splitIps.map((ip, i) => `
+          <div class="panel-row" style="cursor:default">
+            <span class="row-title" style="font-size:11px">${ip}</span>
+            <button class="icon-action urgent" data-rm-ip="${i}" title="Remove">×</button>
+          </div>
+        `).join("")}
+      </div>
+      <div style="display:flex; gap:6px;">
+        <input class="text-input" id="new-cidr" placeholder="192.168.1.0/24">
+        <button class="btn sm primary" id="add-cidr-btn">Add</button>
+      </div>
+    `;
+    body.querySelector("#sheet-back").onclick = () => { state.subSheet = null; renderSettings(); };
+    body.querySelector("#st-enable").onclick = () => {
+      if (!s.splitTunnel && s.killswitch !== "off") {
+        openDialog(
+          "Disable Kill Switch?",
+          "Split Tunneling cannot run while Kill Switch is enabled. Disable Kill Switch and enable Split Tunneling?",
+          () => { s.killswitch = "off"; s.splitTunnel = true; renderAll(); showToast("Split Tunneling enabled"); }
+        );
+      } else {
+        s.splitTunnel = !s.splitTunnel;
+        renderAll();
+      }
+    };
+    body.querySelectorAll("[data-st-mode]").forEach((b) => {
+      b.onclick = () => { s.splitMode = b.dataset.stMode; renderSettings(); showToast(`Split mode: ${s.splitMode}`); };
+    });
+    body.querySelectorAll("[data-rm-app]").forEach((b) => {
+      b.onclick = () => { s.splitApps.splice(Number(b.dataset.rmApp), 1); renderSettings(); };
+    });
+    body.querySelectorAll("[data-rm-ip]").forEach((b) => {
+      b.onclick = () => { s.splitIps.splice(Number(b.dataset.rmIp), 1); renderSettings(); };
+    });
+    body.querySelector("#add-app-btn").onclick = () => {
+      const val = body.querySelector("#new-app-path").value.trim();
+      if (val.startsWith("/")) { s.splitApps.push(val); renderSettings(); }
+      else showToast("Enter an absolute binary path (e.g. /usr/bin/firefox)");
+    };
+    body.querySelector("#add-cidr-btn").onclick = () => {
+      const val = body.querySelector("#new-cidr").value.trim();
+      if (val) { s.splitIps.push(val); renderSettings(); }
+    };
+    return;
+  }
+
+  if (state.subSheet === "dns") {
+    body.innerHTML = `
+      <div class="breadcrumb">
+        <button class="btn sm" id="sheet-back">← Settings</button>
+        <span class="badge">Reconnect to apply</span>
+      </div>
+      <div class="setting-row">
+        <div class="setting-label">
+          <span class="setting-title">Custom DNS</span>
+          <span class="setting-desc">Overrides Proton DNS and NetShield filtering</span>
+        </div>
+        <button class="toggle-switch sm ${sharp} ${s.customDns ? 'checked' : ''}" id="dns-enable"></button>
+      </div>
+      <div class="list-stack">
+        ${s.dnsList.map((ip, i) => `
+          <div class="panel-row" style="cursor:default">
+            <span class="row-title">${ip}</span>
+            <button class="icon-action urgent" data-rm-dns="${i}">×</button>
+          </div>
+        `).join("")}
+      </div>
+      <div style="display:flex; gap:6px;">
+        <input class="text-input" id="new-dns" placeholder="1.1.1.1 or 2606:4700:4700::1111">
+        <button class="btn sm primary" id="add-dns-btn">Add</button>
+      </div>
+    `;
+    body.querySelector("#sheet-back").onclick = () => { state.subSheet = null; renderSettings(); };
+    body.querySelector("#dns-enable").onclick = () => { s.customDns = !s.customDns; s.requiresReconnect = state.connState === "connected"; renderAll(); };
+    body.querySelectorAll("[data-rm-dns]").forEach((b) => { b.onclick = () => { s.dnsList.splice(Number(b.dataset.rmDns), 1); renderSettings(); }; });
+    body.querySelector("#add-dns-btn").onclick = () => {
+      const val = body.querySelector("#new-dns").value.trim();
+      if (val) { s.dnsList.push(val); renderSettings(); }
+    };
+    return;
+  }
+
+  body.innerHTML = `
+    <div class="section-header"><span>Security</span></div>
+    <div class="setting-label"><span class="setting-title">Kill Switch</span></div>
+    <div class="btn-group">
+      <button class="seg-btn ${s.killswitch === 'off' ? 'active' : ''}" data-ks="off">Off</button>
+      <button class="seg-btn ${s.killswitch === 'standard' ? 'active' : ''}" data-ks="standard">Standard</button>
+      <button class="seg-btn ${s.killswitch === 'permanent' ? 'active-urgent' : ''}" data-ks="permanent">Permanent</button>
+    </div>
+
+    <div class="setting-label" style="margin-top:2px;">
+      <span class="setting-title">NetShield DNS Filtering</span>
+      ${s.customDns ? `<span class="setting-desc" style="color:var(--warn)">Bypassed while Custom DNS is enabled</span>` : ""}
+    </div>
+    <div class="btn-group">
+      <button class="seg-btn ${s.netshield === 'off' ? 'active' : ''}" data-ns="off">Off</button>
+      <button class="seg-btn ${s.netshield === 'malware' ? 'active' : ''}" data-ns="malware">Malware</button>
+      <button class="seg-btn ${s.netshield === 'ads' ? 'active' : ''}" data-ns="ads">Ads &amp; Trackers</button>
+    </div>
+
+    <div class="sep"></div>
+    <div class="section-header"><span>Connection</span></div>
+
+    <div class="setting-row">
+      <div class="setting-label">
+        <span class="setting-title">Protocol</span>
+        <span class="setting-desc">Reconnect required on change</span>
+      </div>
+      <select class="omarchy-select" id="proto-select">
+        <option value="wireguard" ${s.protocol === 'wireguard' ? 'selected' : ''}>WireGuard</option>
+        <option value="protun-smart" ${s.protocol === 'protun-smart' ? 'selected' : ''}>Smart</option>
+        <option value="protun-tls" ${s.protocol === 'protun-tls' ? 'selected' : ''}>Stealth</option>
+        <option value="openvpn-udp" ${s.protocol === 'openvpn-udp' ? 'selected' : ''}>OpenVPN (UDP)</option>
+        <option value="openvpn-tcp" ${s.protocol === 'openvpn-tcp' ? 'selected' : ''}>OpenVPN (TCP)</option>
+      </select>
+    </div>
+
+    <div class="setting-row">
+      <div class="setting-label"><span class="setting-title">VPN Accelerator</span><span class="setting-desc">Live · Up to 400% speed boost</span></div>
+      <button class="toggle-switch sm ${sharp} ${s.vpnAccelerator ? 'checked' : ''}" data-toggle="vpnAccelerator"></button>
+    </div>
+    <div class="setting-row">
+      <div class="setting-label"><span class="setting-title">Moderate NAT</span><span class="setting-desc">Live · Better gaming &amp; P2P peers</span></div>
+      <button class="toggle-switch sm ${sharp} ${s.moderateNat ? 'checked' : ''}" data-toggle="moderateNat"></button>
+    </div>
+    <div class="setting-row">
+      <div class="setting-label"><span class="setting-title">Port Forwarding</span><span class="setting-desc">Live · Active on P2P servers</span></div>
+      <button class="toggle-switch sm ${sharp} ${s.portForwarding ? 'checked' : ''}" data-toggle="portForwarding"></button>
+    </div>
+    <div class="setting-row">
+      <div class="setting-label"><span class="setting-title">IPv6 Tunneling</span><span class="setting-desc">Route IPv6 inside VPN tunnel</span></div>
+      <button class="toggle-switch sm ${sharp} ${s.ipv6 ? 'checked' : ''}" data-toggle="ipv6"></button>
+    </div>
+
+    <div class="sep"></div>
+    <div class="section-header"><span>Routing &amp; Bar</span></div>
+
+    <div class="panel-row" id="open-split-sheet">
+      <div class="row-text">
+        <span class="row-title">Split Tunneling</span>
+        <span class="row-sub">${s.splitTunnel ? `${s.splitMode} · ${s.splitApps.length} apps, ${s.splitIps.length} IPs` : 'Off · eBPF daemon ready'}</span>
+      </div>
+      <span class="bar-muted">▸</span>
+    </div>
+    <div class="panel-row" id="open-dns-sheet">
+      <div class="row-text">
+        <span class="row-title">Custom DNS</span>
+        <span class="row-sub">${s.customDns ? s.dnsList.join(", ") : 'Off · Using Proton DNS'}</span>
+      </div>
+      <span class="bar-muted">▸</span>
+    </div>
+    <div class="setting-row">
+      <div class="setting-label"><span class="setting-title">Show Country Code in Bar</span><span class="setting-desc">Displays CH / US beside bar icon</span></div>
+      <button class="toggle-switch sm ${sharp} ${s.showCountryCode ? 'checked' : ''}" data-toggle="showCountryCode"></button>
+    </div>
+  `;
+
+  body.querySelectorAll("[data-ks]").forEach((btn) => {
+    btn.onclick = () => {
+      const next = btn.dataset.ks;
+      if (next === s.killswitch) return;
+      const apply = () => {
+        s.killswitch = next;
+        if (next !== "off") s.splitTunnel = false;
+        renderAll();
+        showToast(`Kill Switch: ${next}`);
+      };
+      if (next === "permanent") {
+        openDialog(
+          "Enable Permanent Kill Switch?",
+          "All internet traffic will be blocked whenever VPN is disconnected, including across reboots, until you turn Kill Switch off.",
+          apply
+        );
+      } else if (next !== "off" && s.splitTunnel) {
+        openDialog(
+          "Disable Split Tunneling?",
+          "Kill Switch cannot run alongside Split Tunneling. Disable Split Tunneling and enable Standard Kill Switch?",
+          apply
+        );
+      } else {
+        apply();
+      }
+    };
+  });
+
+  body.querySelectorAll("[data-ns]").forEach((btn) => {
+    btn.onclick = () => {
+      s.netshield = btn.dataset.ns;
+      renderAll();
+      showToast(`NetShield applied live`);
+    };
+  });
+
+  body.querySelector("#proto-select").onchange = (e) => {
+    s.protocol = e.target.value;
+    if (state.connState === "connected") s.requiresReconnect = true;
+    renderAll();
+    showToast(`Protocol set to ${protocolLabel(s.protocol)}`);
+  };
+
+  body.querySelectorAll("[data-toggle]").forEach((btn) => {
+    btn.onclick = () => {
+      const k = btn.dataset.toggle;
+      s[k] = !s[k];
+      if (k === "ipv6" && state.connState === "connected") s.requiresReconnect = true;
+      if (k === "portForwarding") {
+        state.server.forwardedPort = (s.portForwarding && state.server.features.includes("P2P")) ? 54321 : null;
+      }
+      renderAll();
+      showToast(`${k === 'showCountryCode' ? 'Bar country badge' : k}: ${s[k] ? 'On' : 'Off'}`);
+    };
+  });
+
+  body.querySelector("#open-split-sheet").onclick = () => { state.subSheet = "split"; renderSettings(); };
+  body.querySelector("#open-dns-sheet").onclick = () => { state.subSheet = "dns"; renderSettings(); };
+}
+
+function renderAccount() {
+  const body = $("#panel-body");
+  if (!state.signedIn) {
+    if (state.authStep === "2fa") {
+      body.innerHTML = `
+        <div class="surface-card">
+          <div class="tele-row">
+            <span class="setting-title">Two-Factor Authentication</span>
+            <span class="badge accent">Step 2 of 2</span>
+          </div>
+          <span class="setting-desc">Touch your FIDO2 security key or enter a 6-digit authenticator / recovery code.</span>
+          <button class="btn primary" id="fido2-btn">Touch Security Key (FIDO2)</button>
+          <div class="sep"></div>
+          <input class="text-input" id="totp-input" type="password" placeholder="6-digit TOTP or recovery code">
+          <div style="display:flex; gap:6px;">
+            <button class="btn" id="auth-back" style="flex:1">Back</button>
+            <button class="btn primary" id="totp-submit" style="flex:1">Verify &amp; Sign In</button>
+          </div>
+        </div>
+      `;
+      body.querySelector("#fido2-btn").onclick = () => {
+        const b = body.querySelector("#fido2-btn");
+        b.textContent = "Waiting for security key touch…";
+        setTimeout(() => { state.signedIn = true; state.authStep = "credentials"; state.tab = "home"; renderAll(); showToast("Signed in via FIDO2 key (saved to OS Keyring)"); }, 650);
+      };
+      body.querySelector("#totp-submit").onclick = () => { state.signedIn = true; state.authStep = "credentials"; state.tab = "home"; renderAll(); showToast("Signed in to Proton VPN (saved to OS Keyring)"); };
+      body.querySelector("#auth-back").onclick = () => { state.authStep = "credentials"; renderAccount(); };
+      return;
+    }
+
+    body.innerHTML = `
+      <div class="surface-card">
+        <div class="tele-row">
+          <span class="setting-title">Sign in to Proton VPN</span>
+          <span class="badge ok">OS Keyring</span>
+        </div>
+        <span class="setting-desc">Direct in-app SRP authentication over a private pipe. Your password is never logged or stored on disk.</span>
+        <input class="text-input" id="login-user" placeholder="Proton username or email" value="alex@proton.me">
+        <div style="display:flex; gap:5px; align-items:center;">
+          <input class="text-input" id="login-pass" type="password" placeholder="Password" value="••••••••••••">
+          <button class="btn sm" id="toggle-pass" title="Show/hide password">Show</button>
+        </div>
+        <button class="btn primary" id="login-submit">Sign In</button>
+      </div>
+    `;
+    body.querySelector("#toggle-pass").onclick = () => {
+      const p = body.querySelector("#login-pass");
+      const b = body.querySelector("#toggle-pass");
+      const showing = p.type === "text";
+      p.type = showing ? "password" : "text";
+      b.textContent = showing ? "Show" : "Hide";
+    };
+    body.querySelector("#login-submit").onclick = () => { state.authStep = "2fa"; renderAccount(); };
+    return;
+  }
+
+  body.innerHTML = `
+    <div class="surface-card">
+      <div class="tele-row">
+        <div class="row-text">
+          <span class="hero-title" style="font-size:13px;">alex@proton.me</span>
+          <span class="row-sub">Up to 10 concurrent devices</span>
+        </div>
+        <span class="badge accent">VPN Plus</span>
+      </div>
+      <div style="display:flex; gap:6px; margin-top:4px;">
+        <button class="btn sm" id="refresh-plan" style="flex:1">Refresh Plan</button>
+        <button class="btn sm danger" id="signout-btn" style="flex:1">Sign Out</button>
+      </div>
+    </div>
+
+    <div class="section-header"><span>System Diagnostics</span><span>Healthy</span></div>
+    <div class="surface-card" style="gap:6px;">
+      <div class="tele-row"><span class="row-sub">NetworkManager</span><span class="badge ok">Active</span></div>
+      <div class="tele-row"><span class="row-sub">proton.VPN.service (Split Tunnel)</span><span class="badge ok">Enabled</span></div>
+      <div class="tele-row"><span class="row-sub">OS Keyring (Secret Service)</span><span class="badge ok">Unlocked</span></div>
+      <div class="tele-row"><span class="row-sub">Python Bridge (NDJSON)</span><span class="badge ok">Connected · 1.4 ms</span></div>
+    </div>
+  `;
+  body.querySelector("#refresh-plan").onclick = () => showToast("Plan synced: VPN Plus");
+  body.querySelector("#signout-btn").onclick = () => {
+    openDialog(
+      "Sign out of Proton VPN?",
+      "Signing out will disconnect any active VPN tunnel and clear your local Proton session from the keyring.",
+      () => { state.connState = "disconnected"; state.signedIn = false; renderAll(); showToast("Signed out"); }
+    );
+  };
+}
+
+function copyVal(val, label) {
+  navigator.clipboard?.writeText(val).catch(() => {});
+  showToast(`Copied ${label}: ${val}`);
+}
+
+function renderAll() {
+  renderBarAndHero();
+  $("#keyboard-panel").classList.toggle("open", state.open);
+  $("#panel-backdrop").classList.toggle("open", state.open);
+  if (state.tab === "home") renderHome();
+  else if (state.tab === "servers") renderServers();
+  else if (state.tab === "settings") renderSettings();
+  else renderAccount();
+}
+
+function renderThemeButtons() {
+  const wrap = $("#theme-buttons");
+  wrap.innerHTML = Object.keys(THEMES).map((name) =>
+    `<button class="chip ${state.theme === name ? 'active' : ''}" data-theme="${name}">${name}</button>`
+  ).join("");
+  wrap.querySelectorAll("[data-theme]").forEach((b) => {
+    b.onclick = () => applyTheme(b.dataset.theme);
+  });
+}
+
+// Bar button interactions
+const barBtn = $("#proton-bar-btn");
+barBtn.addEventListener("click", () => { state.open = !state.open; renderAll(); });
+barBtn.addEventListener("contextmenu", (e) => { e.preventDefault(); toggleConnection(); });
+barBtn.addEventListener("mouseenter", () => { if (!state.open) $("#bar-tooltip").classList.add("visible"); });
+barBtn.addEventListener("mouseleave", () => $("#bar-tooltip").classList.remove("visible"));
+
+$("#panel-backdrop").addEventListener("click", () => { state.open = false; renderAll(); });
+$("#hero-toggle").addEventListener("click", toggleConnection);
+
+document.querySelectorAll(".tab-btn").forEach((b) => {
+  b.addEventListener("click", () => {
+    state.tab = b.dataset.tab;
+    state.subSheet = null;
+    renderAll();
+  });
+});
+
+// State simulator buttons
+document.querySelectorAll("[data-sim]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("[data-sim]").forEach((x) => x.classList.remove("active"));
+    btn.classList.add("active");
+    const m = btn.dataset.sim;
+    state.signedIn = m !== "signedout";
+    state.subSheet = null;
+    if (m === "connected") {
+      state.connState = "connected";
+      state.settings.killswitch = "standard";
+      state.server = { name: "CH#12", countryCode: "CH", country: "Switzerland", city: "Zurich", entryCountry: null, load: 18, ip: "185.159.157.42", features: ["P2P", "STR", "IPv6"], forwardedPort: 54321 };
+      state.tab = "home";
+    } else if (m === "securecore") {
+      state.connState = "connected";
+      state.settings.killswitch = "standard";
+      state.server = { name: "IS-CH#1", countryCode: "CH", country: "Switzerland", city: "Zurich", entryCountry: "Iceland", load: 16, ip: "185.159.156.9", features: ["SC", "STR"], forwardedPort: null };
+      state.tab = "home";
+    } else if (m === "connecting") {
+      state.connState = "connecting";
+      state.tab = "home";
+    } else if (m === "disconnected") {
+      state.connState = "disconnected";
+      state.settings.killswitch = "off";
+      state.tab = "home";
+    } else if (m === "ksblock") {
+      state.connState = "disconnected";
+      state.settings.killswitch = "permanent";
+      state.tab = "home";
+    } else if (m === "signedout") {
+      state.connState = "disconnected";
+      state.tab = "account";
+    }
+    state.open = true;
+    renderAll();
+  });
+});
+
+// Keyboard shortcuts matching Omarchy PanelKeyCatcher
+document.addEventListener("keydown", (e) => {
+  const inInput = ["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement?.tagName);
+  if (e.key === "Escape") {
+    if ($("#dialog-scrim").classList.contains("open")) { $("#dialog-scrim").classList.remove("open"); return; }
+    if (state.subSheet) { state.subSheet = null; renderAll(); return; }
+    if (state.tab === "servers" && state.serverQuery) { state.serverQuery = ""; renderAll(); return; }
+    if (state.tab === "servers" && (state.drillCity || state.drillCountry)) {
+      if (state.drillCity) state.drillCity = null; else state.drillCountry = null;
+      renderAll(); return;
+    }
+    state.open = false;
+    renderAll();
+    return;
+  }
+  if (!state.open || inInput) return;
+  if (e.key === "1") { state.tab = "home"; state.subSheet = null; renderAll(); }
+  else if (e.key === "2") { state.tab = "servers"; state.subSheet = null; renderAll(); }
+  else if (e.key === "3") { state.tab = "settings"; state.subSheet = null; renderAll(); }
+  else if (e.key === "4") { state.tab = "account"; state.subSheet = null; renderAll(); }
+  else if (e.key === "/") {
+    e.preventDefault();
+    state.tab = "servers"; state.subSheet = null; renderAll();
+    setTimeout(() => $("#server-search")?.focus(), 10);
+  }
+  else if (e.key === "t" || e.key === "T") toggleConnection();
+  else if ((e.key === "c" || e.key === "C") && state.connState === "connected") copyVal(state.server.ip, "VPN IP");
+  else if ((e.key === "p" || e.key === "P") && state.connState === "connected" && state.server.forwardedPort) copyVal(String(state.server.forwardedPort), "Forwarded Port");
+});
+
+// Subtle 1 Hz live traffic & uptime simulation while panel open & connected
+setInterval(() => {
+  if (state.open && state.connState === "connected") {
+    state.uptimeSec += 1;
+    state.rxMBs = Math.max(0.2, state.rxMBs + (Math.random() - 0.48) * 1.1);
+    state.txKBs = Math.max(24, Math.round(state.txKBs + (Math.random() - 0.5) * 90));
+    const rx = $("#rx-val"), tx = $("#tx-val"), up = $("#uptime-val");
+    if (rx) rx.textContent = `${state.rxMBs.toFixed(1)} MB/s`;
+    if (tx) tx.textContent = `${state.txKBs} KB/s`;
+    if (up) up.textContent = formatDuration(state.uptimeSec);
+  }
+}, 1000);
+
+renderThemeButtons();
+applyTheme("Nebula (Yours)");
+</script>
+</body>
+</html>

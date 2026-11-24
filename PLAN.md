@@ -308,7 +308,21 @@ Each request carries `{ "id": "<uuid-or-seq>", "cmd": "<name>", "params": { ... 
 
 ---
 
-## 6. UI/UX & Navigation Design (`KeyboardPanel`)
+## 6. UI/UX, Visual Craft & Navigation Design (`KeyboardPanel`)
+
+### 6.0 Aesthetic, Layout & Navigation Quality Bar (High Priority)
+The finished plugin MUST look **refined, cohesive, and genuinely professional** — matching the polish of Omarchy's best first-party panels (`omarchy.network`, `omarchy.audio`, `omarchy.tailscale`) and using [mockup.html](mockup.html) as the visual north star for hierarchy, spacing rhythm, and calm visual density. Never ship cramped controls, misaligned rows, raw unstyled lists, or cluttered screens.
+
+- **Clean Layout & Visual Hierarchy**:
+  - **Consistent spacing rhythm**: Use `Style.spacing.popupPadding` outer insets, `Style.spacing.panelGap` between major sections, uniform card internal padding (`Style.space(10)`–`Style.space(12)`), and consistent row heights (`Style.spacing.popupRowHeight` / `Style.spacing.controlHeight`) so every tab feels balanced and intentional.
+  - **Crisp alignment**: All left icons/codes align on one vertical rail, all trailing controls (toggles, load indicators, copy buttons, chevrons) align cleanly on the right edge, and all text labels use `elide: Text.ElideRight` with proper width bounds so long city, server, or binary names never clip harshly or wrap awkwardly.
+  - **Calm, scannable grouping**: Group primary live info (active connection telemetry, account card) inside subtle `BorderSurface` cards; separate sections with `PanelSeparator` + `PanelSectionHeader`; keep badges compact and understated so the active state and primary actions stand out immediately.
+  - **Zero layout jank**: Reserve stable heights for loading/connecting states and dynamic banners; let `KeyboardPanel.drawnHeight` smoothly animate height changes rather than snapping.
+- **Effortless, Intuitive Navigation**:
+  - **1-click common tasks**: From **Home**, users can connect/disconnect, switch to a Favorite/Recent, copy VPN IP or forwarded port (with brief inline `"Copied"` confirmation), or cycle NetShield in a single click or keystroke — zero digging through menus.
+  - **Progressive disclosure (zero clutter)**: Keep the top-level **Settings** tab scannable by placing multi-item editors (**Split Tunneling** apps/CIDRs, **Custom DNS** IP list) in dedicated inline sub-sheets with a clear `← Settings` breadcrumb header.
+  - **Clear orientation everywhere**: Always show where you are via the active tab highlight, drill-down breadcrumbs (`← All Countries`, `← Switzerland / Zurich`), and a subtle bottom hint strip for key shortcuts.
+  - **Polished edge states**: Every list and flow must have a clean, helpful empty state (e.g. `"No servers match …"` with a 1-click `[Clear]` button, `"No favorites pinned yet"` hint), clear inline connecting/busy feedback (no unresponsive clicks), and concise human-readable error banners with a direct recovery action.
 
 ### 6.1 Panel Geometry, Dynamic Custom Theme Adaptation & Visual Language
 The plugin MUST automatically inherit and live-adapt to **any Omarchy theme** — stock themes, forked/overlaid themes in `~/.config/omarchy/themes/<custom>/`, user `~/.config/omarchy/shell.toml` overrides, custom fonts (`omarchy font set`), Hyprland rounding/gaps, translucent/glassy/opaque bars, and **both dark and light custom themes** — with zero restart required.
@@ -567,6 +581,7 @@ Execute in order, verifying each phase before advancing.
    - Live theme switch (`omarchy theme set ...`) across stock dark themes, **light themes**, **custom user themes** (`~/.config/omarchy/themes/<custom>/`), `0px` sharp-corner themes, custom fonts (`omarchy font set`), and custom `shell.toml` overrides updates every surface, border, radius, font, and semantic color immediately without restart.
    - Animations toggle (`omarchy toggle animations`) sets all transition durations to 0.
    - Connect/Disconnect, Country/City/Server/Secure Core/P2P connect, live NetShield toggle, Port Forwarding readout, Split Tunneling rule apply, Kill Switch confirmation & state, Custom DNS validation, and Sign Out/Sign In (including 2FA) all work end-to-end.
+   - Visual polish & usability review: verify alignment, consistent spacing/padding, clean text elision (no clipping/overflow on long city/server/app names), smooth hover/keyboard focus transitions, crisp empty/loading/error states, and overall visual parity with [mockup.html](mockup.html) across both dark and light themes.
    - Multi-monitor & custom-bar check: with 2+ monitors (or cloned `pl0xuee.bar`), `ps aux | grep bridge.py` confirms **one** shared `bridge.py` process (no duplicates), zero secrets in cmdline, and clean exit on `omarchy restart shell` or `omarchy-shell shell rescanPlugins`.
 
 ---

@@ -12,7 +12,7 @@ A Proton VPN control panel for the Omarchy bar: one-click connect, a fast server
 ## Install
 
 ```sh
-omarchy plugin add https://github.com/pl0xuee/omarchy-protonarchy.git --enable
+omarchy plugin add https://github.com/pl0xuee/proton-for-omarchy.git --enable
 ```
 
 Or from a checkout:

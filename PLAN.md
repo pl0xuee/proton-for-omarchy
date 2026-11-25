@@ -1,8 +1,8 @@
 # Protonarchy — Omarchy Proton VPN Bar Plugin Plan
 
 > **Plugin Name:** Protonarchy · **Plugin ID:** `pl0xuee.proton-for-omarchy` · **Author:** `pl0xuee`
-> **Repository:** `https://github.com/pl0xuee/omarchy-protonarchy`
-> **Install (once published):** `omarchy plugin add https://github.com/pl0xuee/omarchy-protonarchy.git --enable`
+> **Repository:** `https://github.com/pl0xuee/proton-for-omarchy`
+> **Install (once published):** `omarchy plugin add https://github.com/pl0xuee/proton-for-omarchy.git --enable`
 > **Target environment verified on host:** Omarchy `4.5.0-3` (Quickshell `omarchy-shell`), Python `3.14`, `python-proton-vpn-api-core 5.8.7-1`, `proton-vpn-cli 1.0.5-1`, `proton-vpn-daemon 0.13.8-1` (`me.proton.vpn.split_tunneling` D-Bus service enabled), `python-proton-keyring-linux 0.2.3-1`, `NetworkManager` enabled, `wl-copy`.
 
 ---
@@ -29,7 +29,7 @@ Build a **feature-complete, native Omarchy shell bar plugin** for Proton VPN anc
 ## 2. Verified Platform Architecture & Constraints
 
 ### 2.1 Omarchy 4.5 Plugin Contract (verified via `PluginRegistry.qml` & `omarchy-plugin-validate`)
-- **Install directory**: `~/.config/omarchy/plugins/pl0xuee.proton-for-omarchy/` (installed via `omarchy plugin add https://github.com/pl0xuee/omarchy-protonarchy.git --enable` or copied during dev; hot-reloads automatically on file save, or force via `omarchy-shell shell rescanPlugins`).
+- **Install directory**: `~/.config/omarchy/plugins/pl0xuee.proton-for-omarchy/` (installed via `omarchy plugin add https://github.com/pl0xuee/proton-for-omarchy.git --enable` or copied during dev; hot-reloads automatically on file save, or force via `omarchy-shell shell rescanPlugins`).
 - **Plugin ID**: `pl0xuee.proton-for-omarchy`
   - Must match `^[A-Za-z0-9][A-Za-z0-9._-]*$`, no `..`, and **must NOT start with `omarchy.`** (reserved namespace rejected by `omarchy-plugin-validate`).
 - **Manifest rules**:
@@ -166,7 +166,7 @@ Keep the repository root directly validatable by `omarchy plugin validate .` and
   "version": "1.0.0",
   "author": "pl0xuee",
   "license": "GPL-3.0-or-later",
-  "homepage": "https://github.com/pl0xuee/omarchy-protonarchy",
+  "homepage": "https://github.com/pl0xuee/proton-for-omarchy",
   "description": "Fast, secure, feature-complete Proton VPN control panel for the Omarchy bar.",
   "kinds": [
     "service",
@@ -515,7 +515,7 @@ The implementing agent MUST enforce and test every item below:
 ## 8. Phased Implementation Plan (For the Executing Agent)
 
 > **Builder Agent Handoff Notes:**
-> - This repository root is the plugin root (do not nest inside a subfolder; `git remote origin` is already configured to `https://github.com/pl0xuee/omarchy-protonarchy.git`).
+> - This repository root is the plugin root (do not nest inside a subfolder; `git remote origin` is already configured to `https://github.com/pl0xuee/proton-for-omarchy.git`).
 > - [mockup.html](mockup.html) is a visual design reference only — keep `mockup.html`, `PLAN.md`, `tests/`, and `.git/` out of the installed copy when `scripts/install-local.sh` copies runtime files into `~/.config/omarchy/plugins/pl0xuee.proton-for-omarchy/`.
 > - On `Panel.qml` (extending `qs.Ui.Panel`), set `manageIpc: false` and declare the full `ShellIpc { target: "pl0xuee.proton-for-omarchy" }` block directly to avoid duplicate IPC handlers.
 > - Use `api.refresher.set_server_list_updated_callback(...)`, `set_server_loads_updated_callback(...)`, and `set_error_callback(...)` in `backend/proton_client.py`, enabling the refresher after login and disabling cleanly on logout/shutdown.
@@ -574,7 +574,7 @@ Execute in order, verifying each phase before advancing.
    - All Python unit tests and `Model.js` tests pass.
    - `qmllint` (if installed on host) reports zero syntax/import errors.
 2. Test local install via `scripts/install-local.sh` (copies runtime files to `~/.config/omarchy/plugins/pl0xuee.proton-for-omarchy`, runs `omarchy-shell shell rescanPlugins`, `omarchy plugin enable pl0xuee.proton-for-omarchy`, confirms bar placement in `right` section of `~/.config/omarchy/shell.json` without clobbering existing widgets).
-3. Verify remote install compatibility with `omarchy plugin add https://github.com/pl0xuee/omarchy-protonarchy.git --enable` (repo root must contain `manifest.json`, zero symlinks, and a clean `README.md`).
+3. Verify remote install compatibility with `omarchy plugin add https://github.com/pl0xuee/proton-for-omarchy.git --enable` (repo root must contain `manifest.json`, zero symlinks, and a clean `README.md`).
 4. Live verification checklist on desktop:
    - Bar icon renders cleanly at horizontal top bar and vertical bar; tooltip updates and strips markup.
    - Left/right/middle click work; panel morphs smoothly with adjacent `omarchy.network` and `omarchy.audio` panels.

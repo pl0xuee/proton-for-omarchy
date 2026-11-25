@@ -21,7 +21,7 @@ UPDATE=0
 /usr/share/omarchy/bin/omarchy-plugin-validate .
 
 # Runtime files only: no plan, mockup, tests or git metadata.
-FILES=(manifest.json Panel.qml Service.qml Model.js ProtonVpnIcon.qml README.md)
+FILES=(manifest.json Panel.qml Service.qml Model.js ProtonVpnIcon.qml README.md LICENSE)
 DIRS=(components backend i18n)
 
 stage=$(mktemp -d)

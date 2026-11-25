@@ -27,6 +27,20 @@ scripts/install-local.sh            # copies runtime files, rescans, enables in 
 scripts/install-local.sh --no-enable
 ```
 
+## Remove
+
+1. Optional: sign out under **Account** first, to clear the Proton session from the system keyring.
+2. Remove the plugin. This unloads it, takes it off the bar and deletes its folder:
+
+   ```sh
+   omarchy plugin remove pl0xuee.proton-for-omarchy
+   ```
+
+3. Optional: delete the favorites file with `rm -f ~/.config/omarchy/proton-for-omarchy-state.json`.
+4. Optional: if you installed Proton VPN only for this plugin, run `sudo systemctl disable --now proton.VPN.service` and `sudo pacman -Rns proton-vpn-cli`.
+
+The plugin changes no system files. Its only writes are the favorites file above and a per-session marker in `$XDG_RUNTIME_DIR`, which is cleared at logout. Proton VPN settings belong to Proton's own config, which is kept so the Proton app still works.
+
 ## Using it
 
 | In the bar | Action |

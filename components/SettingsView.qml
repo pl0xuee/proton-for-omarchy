@@ -199,7 +199,7 @@ Item {
       ["protocol"], ["start:0", "start:1", "start:2"], ["vpn_accelerator"], ["moderate_nat"], ["port_forwarding"], ["ipv6"],
       ["split"], ["dns"],
       ["pref:showCountryCode"], ["tint:0", "tint:1", "tint:2"],
-      ["pref:showNotifications"], ["pref:bandwidthPolling"], ["pref:autoRefreshServers"], ["pref:checkForUpdates"],
+      ["pref:showNotifications"], ["pref:bandwidthPolling"], ["pref:autoRefreshServers"], ["pref:checkForUpdates"], ["pref:connectionHistory"],
       ["anonymous_crash_reports"], ["telemetry"], ["recommended"]
     ]
   }
@@ -277,6 +277,12 @@ Item {
     else if (key.indexOf("start:") === 0) widgetSettingChanged("connectOnStartup", startOptions[Number(key.substring(6))].value)
     else if (key.indexOf("pref:") === 0) {
       var name = key.substring(5)
+      if (name === "connectionHistory" && widget(name, true) && svc && svc.history.length > 0) {
+        confirmRequested(t("history.offConfirm", "Turn off connection history? This clears the saved history."),
+                         t("history.turnOff", "Turn off"),
+                         function() { root.widgetSettingChanged("connectionHistory", false) })
+        return
+      }
       widgetSettingChanged(name, !widget(name, true))
     }
   }
@@ -529,6 +535,12 @@ Item {
         PrefRow {
           key: "checkForUpdates"
           title: root.t("settings.checkForUpdates", "Check GitHub for plugin updates")
+          fallback: true
+        }
+        PrefRow {
+          key: "connectionHistory"
+          title: root.t("settings.connectionHistory", "Keep connection history")
+          subtitle: root.t("settings.connectionHistoryHelp", "Last 30 connections, on this computer only. Turning it off clears it")
           fallback: true
         }
         ToggleRow {

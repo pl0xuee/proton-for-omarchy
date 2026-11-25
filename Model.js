@@ -42,6 +42,14 @@ function formatDuration(seconds) {
   return pad2(h) + ":" + pad2(m) + ":" + pad2(sec)
 }
 
+// Compact elapsed time for the bar tooltip: "<1 min", "12 min", "2 h 05 min".
+function shortDuration(seconds) {
+  var m = Math.floor(Math.max(0, Number(seconds) || 0) / 60)
+  if (m < 1) return "<1 min"
+  if (m < 60) return m + " min"
+  return Math.floor(m / 60) + " h " + pad2(m % 60) + " min"
+}
+
 // 0 = low, 1 = medium, 2 = high. Matches Proton's own 75/90 thresholds.
 function loadLevel(load) {
   var n = Number(load)

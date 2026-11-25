@@ -97,3 +97,10 @@ test("paths", () => {
   assert.equal(M.basename("/usr/bin/firefox"), "firefox")
   assert.equal(M.clamp(5, 0, 3), 3)
 })
+
+test("shortDuration for the bar tooltip", () => {
+  assert.equal(M.shortDuration(20), "<1 min")
+  assert.equal(M.shortDuration(12 * 60 + 5), "12 min")
+  assert.equal(M.shortDuration(2 * 3600 + 5 * 60), "2 h 05 min")
+  assert.equal(M.shortDuration(-5), "<1 min")
+})

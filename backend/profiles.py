@@ -20,8 +20,10 @@ from protocol import ProtocolError, clean_text, connect_target
 
 MAX_FAVORITES = 50
 MAX_RECENTS = 5
+MAX_HISTORY = 30
 MAX_STATE_BYTES = 1 << 20
 _VERSION_RE = re.compile(r"^\d{1,4}\.\d{1,4}\.\d{1,4}$")
+_COUNTRY_RE = re.compile(r"^[A-Z]{2}$")
 
 
 def _safe_ts(value: Any) -> int:
@@ -31,6 +33,15 @@ def _safe_ts(value: Any) -> int:
     if value != value or not 0 <= value < 2 ** 40:
         return 0
     return int(value)
+
+
+def _safe_bytes(value: Any) -> int:
+    """A sane byte count or 0 (up to 2**53, so it stays exact in JSON and QML)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value != value:
+        return 0
+    return int(value) if 0 <= value <= 2 ** 53 else 0
+
+
 STATE_VERSION = 1
 
 
@@ -103,6 +114,32 @@ class ProfileStore:
         self.recents = self._sanitize_list(raw.get("recents"), MAX_RECENTS)
         dismissed = raw.get("dismissedUpdate")
         self.dismissed_update = dismissed if isinstance(dismissed, str) and _VERSION_RE.match(dismissed) else ""
+        self.history = self._sanitize_history(raw.get("history"))
+
+    @staticmethod
+    def _history_entry(item: Any) -> dict | None:
+        if not isinstance(item, dict):
+            return None
+        start, end = _safe_ts(item.get("start")), _safe_ts(item.get("end"))
+        server = clean_text(item.get("server") or "", 64)
+        if not start or end < start or not server:
+            return None
+        country = str(item.get("country") or "")
+        return {
+            "server": server,
+            "label": clean_text(item.get("label") or server, 96),
+            "country": country if _COUNTRY_RE.match(country) else "",
+            "start": start,
+            "end": end,
+            "rx": _safe_bytes(item.get("rx")),
+            "tx": _safe_bytes(item.get("tx")),
+        }
+
+    def _sanitize_history(self, items: Any) -> list[dict]:
+        if not isinstance(items, list):
+            return []
+        out = [e for e in (self._history_entry(i) for i in items[:MAX_HISTORY]) if e]
+        return out[:MAX_HISTORY]
 
     def _sanitize_list(self, items: Any, limit: int) -> list[dict]:
         out: list[dict] = []
@@ -156,7 +193,8 @@ class ProfileStore:
         directory = os.path.dirname(self.path)
         os.makedirs(directory, mode=0o700, exist_ok=True)
         payload = json.dumps({"version": STATE_VERSION, "favorites": self.favorites,
-                              "recents": self.recents, "dismissedUpdate": self.dismissed_update},
+                              "recents": self.recents, "dismissedUpdate": self.dismissed_update,
+                              "history": self.history},
                              indent=1, ensure_ascii=False)
         fd, tmp = tempfile.mkstemp(prefix=".proton-for-omarchy-", suffix=".tmp", dir=directory)
         try:
@@ -176,7 +214,8 @@ class ProfileStore:
     # --- operations --------------------------------------------------------
 
     def snapshot(self) -> dict:
-        return {"favorites": list(self.favorites), "recents": list(self.recents)}
+        return {"favorites": list(self.favorites), "recents": list(self.recents),
+                "history": list(self.history)}
 
     def is_favorite(self, key: str) -> bool:
         return any(f["key"] == key for f in self.favorites)
@@ -198,7 +237,9 @@ class ProfileStore:
                                         "ts": int(time.time())}])
         return True
 
-    def save_profile(self, profile: dict) -> dict:
+    def save_profile(self, profile: dict, describe=None) -> dict:
+        """Save a named profile. `describe(target)` gives the "what it connects to"
+        line shown under the name, so it stays right after a rename."""
         if not isinstance(profile, dict):
             raise ProtocolError("bad_param", "profile must be an object")
         target = connect_target(profile.get("target") or {})
@@ -209,12 +250,20 @@ class ProfileStore:
         if not name:
             raise ProtocolError("missing_param", "Profile needs a name")
         key = target_key(target)
+        detail = describe(target) if callable(describe) else profile.get("detail")
         entry = {"id": key_to_id(key), "key": key, "label": name,
-                 "detail": clean_text(profile.get("detail") or "", 120), "target": target, "ts": int(time.time())}
-        for i, fav in enumerate(self.favorites):
-            if fav["key"] == key or fav["id"] == profile.get("id"):
-                self._commit(self.favorites[:i] + [entry] + self.favorites[i + 1:])
-                return entry
+                 "detail": clean_text(detail or "", 120), "target": target, "ts": int(time.time())}
+        # Replace the profile being edited (by id) or the one already saved for this
+        # target; if both exist and differ, the edit wins and the duplicate is dropped.
+        pid = profile.get("id")
+        at = next((i for i, f in enumerate(self.favorites) if pid and f["id"] == pid), None)
+        if at is None:
+            at = next((i for i, f in enumerate(self.favorites) if f["key"] == key), None)
+        if at is not None:
+            kept = [f for i, f in enumerate(self.favorites) if i == at or f["key"] != key]
+            at = next(i for i, f in enumerate(kept) if f is self.favorites[at])
+            self._commit(kept[:at] + [entry] + kept[at + 1:])
+            return entry
         if len(self.favorites) >= MAX_FAVORITES:
             raise ProtocolError("limit", "Favorites are full (50)")
         self._commit(self.favorites + [entry])
@@ -236,6 +285,26 @@ class ProfileStore:
             self.save()
         except ProtocolError:
             self.dismissed_update = previous
+            raise
+
+    def add_history(self, session: dict) -> None:
+        entry = self._history_entry(session)
+        if entry is None:
+            return
+        previous = self.history
+        self.history = [entry] + self.history[:MAX_HISTORY - 1]
+        try:
+            self.save()
+        except ProtocolError:
+            self.history = previous
+
+    def clear_history(self) -> None:
+        previous = self.history
+        self.history = []
+        try:
+            self.save()
+        except ProtocolError:
+            self.history = previous
             raise
 
     def find(self, profile_id: str) -> dict | None:

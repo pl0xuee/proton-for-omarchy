@@ -35,6 +35,10 @@ Item {
   property string loadError: ""
   property int _seq: 0
   property bool _dirty: true
+  // Ping sort: measured on server lists only; elsewhere it falls back to "fastest".
+  readonly property bool serverLevel: !query && (level === "servers" || level === "sc")
+  readonly property string effectiveSort: sort === "ping" && !serverLevel ? "fastest" : sort
+  property bool measuring: false
 
   signal releaseFocus()
 
@@ -47,13 +51,14 @@ Item {
   function reload() {
     if (!svc || !svc.loggedIn) { items = []; return }
     var seq = ++_seq
-    var params = { query: query, feature: feature, sort: sort, limit: 300 }
+    var params = { query: query, feature: feature, sort: sort === "ping" ? "fastest" : sort, limit: 300 }
     if (!query && level !== "countries") {
       params.countryCode = countryCode
       if (level === "servers") { params.city = city; params.includeServers = true }
       if (level === "sc") { params.entryCountry = entryCountry; params.includeServers = true; params.secureCore = true }
     }
     loading = true
+    measuring = false
     svc.queryServers(params, function(ok, data, error) {
       if (seq !== root._seq) return
       root.loading = false
@@ -62,6 +67,38 @@ Item {
       root.items = root.buildItems(data || {})
       root._dirty = false
       if (root._cursorToFirst) { root._cursorToFirst = false; root.cursorToFirstItem() }
+      if (root.sort === "ping" && root.serverLevel) root.measurePing(seq)
+    })
+  }
+
+  // Time a TCP connect to the 30 least-loaded usable servers, then list them by ping.
+  function measurePing(seq) {
+    var names = []
+    for (var i = 0; i < items.length && names.length < 30; i++) {
+      var it = items[i]
+      if (it.kind === "server" && !it.locked && !it.maintenance) names.push(it.name)
+    }
+    if (names.length === 0) return
+    measuring = true
+    svc.measureLatency(names, function(ms) {
+      if (seq !== root._seq) return
+      root.measuring = false
+      var keep = cursorModel.active ? cursorModel.currentId : ""
+      var out = root.items.map(function(r) {
+        var v = ms[r.name]
+        if (r.kind !== "server" || typeof v !== "number") return r
+        var c = Object.assign({}, r)
+        c.ping = v
+        c.subtitle = v + " ms" + (r.subtitle ? " · " + r.subtitle : "")
+        return c
+      })
+      out.sort(function(a, b) {
+        var pa = a.ping === undefined ? 1e9 : a.ping
+        var pb = b.ping === undefined ? 1e9 : b.ping
+        return pa - pb
+      })
+      root.items = out
+      if (keep) cursorModel.setId(keep)
     })
   }
 
@@ -143,7 +180,9 @@ Item {
       r.target = { targetType: "server", serverName: r.name }
       r.favLabel = r.name
       r.favDetail = r.secureCore ? (r.entryName + " → " + r.countryName) : (r.city ? r.city + ", " + r.countryName : r.countryName)
-      r.subtitle = r.secureCore ? (r.entryName + " → " + r.countryName) : (r.city || r.countryName || "")
+      // Inside a city the city name on every row is noise.
+      r.subtitle = r.secureCore ? r.entryName + " → " + r.countryName
+                                : (level === "servers" && !query ? "" : (r.city || r.countryName || ""))
       r.badge = query ? r.country : ""
       r.drill = false
     }
@@ -257,6 +296,7 @@ Item {
   function sortLabel(s) {
     if (s === "fastest") return t("servers.sortFastest", "Fastest")
     if (s === "load") return t("servers.sortLoad", "Load")
+    if (s === "ping") return t("servers.sortPing", "Ping")
     return t("servers.sortAlpha", "A–Z")
   }
 
@@ -351,7 +391,7 @@ Item {
 
   function connectItem(item) {
     if (!item || !svc) return
-    if (item.locked) { svc.showToast(t("common.plusRequired", "Requires VPN Plus")); return }
+    if (item.locked) { svc.offerUpgrade(); return }
     if (item.maintenance) { svc.showToast(t("servers.maintenance", "Under maintenance")); return }
     svc.connectTarget(item.target, item.favLabel)
   }
@@ -359,7 +399,12 @@ Item {
   function activateKey(key) {
     if (key === "search") { focusSearch(); return }
     if (key.indexOf("f:") === 0) { feature = key.substring(2); return }
-    if (key === "sort") { sort = sort === "alpha" ? "fastest" : (sort === "fastest" ? "load" : "alpha"); return }
+    if (key === "sort") {
+      var order = serverLevel ? ["alpha", "fastest", "load", "ping"] : ["alpha", "fastest", "load"]
+      var at = order.indexOf(effectiveSort)
+      sort = order[(at + 1) % order.length]
+      return
+    }
     if (key === "back") { goUp(); return }
     if (key === "clear") { clearSearch(); return }
     if (key === "connectHere") { svc.connectTarget(hereTarget(), hereLabel()); return }
@@ -450,7 +495,7 @@ Item {
         Chip {
           required property var modelData
           Layout.fillWidth: true
-          implicitWidth: Style.space(36)
+          Layout.minimumWidth: Style.space(36)
           cursorKey: "f:" + modelData.key
           theme: root.theme
           text: modelData.label
@@ -467,8 +512,9 @@ Item {
         cursorKey: "sort"
         theme: root.theme
         iconText: "󰒺"
-        text: root.sortLabel(root.sort)
-        tooltipText: root.t("servers.sortTip", "Change sort order")
+        text: root.measuring ? root.t("servers.measuring", "Pinging…") : root.sortLabel(root.effectiveSort)
+        tooltipText: root.serverLevel ? root.t("servers.sortTipPing", "Change sort order. Ping times a connection to each server; while connected it is measured through the VPN")
+                                      : root.t("servers.sortTip", "Change sort order")
         hasCursor: cursorModel.has("sort")
         onHovered: cursorModel.setId("sort")
         onClicked: root.activateKey("sort")

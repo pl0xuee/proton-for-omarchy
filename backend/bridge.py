@@ -55,7 +55,7 @@ class Bridge:
             log.warning("state file unreadable; starting with empty favorites")
             self.profiles = ProfileStore.__new__(ProfileStore)
             self.profiles.path, self.profiles.favorites, self.profiles.recents = default_state_path(), [], []
-            self.profiles.dismissed_update = ""
+            self.profiles.dismissed_update, self.profiles.history = "", []
         from proton_client import ProtonClient  # noqa: PLC0415 - imports only stdlib + local modules
         self.client = ProtonClient(self.emit, self.profiles)
         self.tasks: set[asyncio.Task] = set()
@@ -156,9 +156,21 @@ class Bridge:
             query = protocol.get_str(p, "query", max_len=64)
             return {"apps": await asyncio.to_thread(split_tunnel.list_apps, query)}
         if cmd == "save_profile":
-            entry = self.profiles.save_profile(p.get("profile"))
+            entry = self.profiles.save_profile(p.get("profile"), describe=lambda t: c._target_label(t, None)[0])
             self.emit("profiles", self.profiles.snapshot())
             return entry
+        if cmd == "measure_latency":
+            raw = p.get("servers")
+            if not isinstance(raw, list) or len(raw) > 30:
+                raise ProtocolError("bad_param", "servers must be a list of up to 30 names")
+            return await c.measure_latency([protocol.server_name(n) for n in raw])
+        if cmd == "clear_history":
+            self.profiles.clear_history()
+            self.emit("profiles", self.profiles.snapshot())
+            return {"cleared": True}
+        if cmd == "set_history":
+            c.set_history_enabled(protocol.get_bool(p, "enabled"))
+            return {"enabled": c.history_enabled}
         if cmd == "delete_profile":
             removed = self.profiles.delete_profile(protocol.get_str(p, "id", required=True, max_len=64))
             self.emit("profiles", self.profiles.snapshot())

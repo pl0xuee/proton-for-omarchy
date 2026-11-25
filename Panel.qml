@@ -57,6 +57,12 @@ Panel {
   property string confirmMessage: ""
   property string confirmLabel: ""
   property var _confirmAction: null
+  property bool nameOpen: false
+  property string nameTitle: ""
+  property string nameInitial: ""
+  property bool nameShowField: true
+  property string nameAction: ""
+  property var _nameAction: null
 
   readonly property var tabs: [
     { key: "home", label: t("tabs.home", "Home") },
@@ -94,6 +100,36 @@ Panel {
     _confirmAction = null
     restoreFocus()
     if (run && typeof action === "function") action()
+  }
+
+  // Ask for a profile name; onSave(name) runs when the user saves.
+  function openNameDialog(title, initial, onSave) {
+    if (confirmOpen) closeConfirm(false)
+    nameTitle = title
+    nameInitial = initial || ""
+    nameShowField = true
+    nameAction = t("common.save", "Save")
+    _nameAction = onSave
+    nameOpen = true
+  }
+
+  // A non-destructive offer (upgrade): same dialog, no field, accent action.
+  function openOffer(message, actionText, action) {
+    if (confirmOpen) closeConfirm(false)
+    nameTitle = message
+    nameInitial = ""
+    nameShowField = false
+    nameAction = actionText
+    _nameAction = function() { action() }
+    nameOpen = true
+  }
+
+  function closeNameDialog(name) {
+    var action = _nameAction
+    nameOpen = false
+    _nameAction = null
+    restoreFocus()
+    if ((name || !nameShowField) && name !== null && typeof action === "function") action(name)
   }
 
   function restoreFocus() {
@@ -186,11 +222,24 @@ Panel {
       }) })
     } else {
       if (confirmOpen) closeConfirm(false)
+      if (nameOpen) closeNameDialog(null)
       if (content) {
         content.views[1].resetView()
         content.views[3].clearSecrets()
+        content.views[3].resetView()
         content.views[2].sheet = ""
       }
+    }
+  }
+
+  // Locked servers and features: offer the pricing page instead of a dead end.
+  Connections {
+    target: root.svc
+    function onUpgradeOffered(reason) {
+      if (!root.opened) return  // one shared service, one panel per monitor
+      root.openOffer(reason + ". " + strings.t("upgrade.body", "Upgrade to VPN Plus for every country, Secure Core, P2P and streaming servers."),
+                       strings.t("upgrade.seePlans", "See plans"),
+                       function() { root.svc.openPricing(); root.close() })
     }
   }
 
@@ -234,7 +283,7 @@ Panel {
     anchors.fill: parent
     bar: root.bar
     labelText: root.showCountry && root.svc && root.svc.connected && root.svc.server ? String(root.svc.server.country || "") : ""
-    tooltipText: root.svc ? root.svc.statusText : ""
+    tooltipText: root.svc ? root.svc.tooltipText : ""
     iconComponent: Component {
       Item {
         ProtonVpnIcon {
@@ -275,7 +324,7 @@ Panel {
       property alias confirmCatcher: confirmCatcher
       implicitHeight: chrome.implicitHeight
       anchors.fill: parent
-      blocked: root.confirmOpen || root.viewEditing
+      blocked: root.confirmOpen || root.nameOpen || root.viewEditing
       reorderable: root.tabIndex === 2 && settingsView.reorderable
       onMoveRequested: function(dx, dy) { root.moveCursor(dx, dy) }
       onReorderRequested: function(dy) { settingsView.reorder(dy) }
@@ -387,6 +436,7 @@ Panel {
             maxHeight: viewStack.viewMax
             onRequestTab: function(index) { root.setTab(index) }
             onRequestSetting: function(key) { root.setTab(2); settingsView.focusSetting(key) }
+            onNameRequested: function(title, initial, onSave) { root.openNameDialog(title, initial, onSave) }
           }
           ServersView {
             id: serversView
@@ -438,6 +488,7 @@ Panel {
             if (root.svc && root.svc.toast !== "") return root.svc.toast
             // Home shows errors in its own banner; other tabs surface them here.
             if (root.svc && root.svc.actionError !== "" && root.tabIndex !== 0) return root.svc.actionError
+            if (root.activeView && root.activeView.hint) return root.activeView.hint
             if (root.tabIndex === 1) return root.t("hints.servers", "/ search · l open · h back · f favorite · Enter connect")
             if (root.tabIndex === 0 && root.svc && root.svc.connected) return root.t("hints.homeConnected", "t disconnect · s switch to fastest · c copy IP · p port")
             return root.t("hints.default", "j/k move · Enter select · t connect · 1–4 tabs · Esc close")
@@ -471,6 +522,23 @@ Panel {
           onCanceled: root.closeConfirm(false)
           onConfirmed: root.closeConfirm(true)
         }
+      }
+
+      // Profile name prompt: owns the keyboard while open.
+      NameDialog {
+        anchors.fill: parent
+        z: 21
+        opened: root.nameOpen
+        title: root.nameTitle
+        initialText: root.nameInitial
+        saveText: root.nameAction
+        showField: root.nameShowField
+        cancelText: root.t("common.cancel", "Cancel")
+        placeholder: root.t("profiles.namePlaceholder", "Profile name")
+        background: Commons.Color.popups.background
+        foreground: themePalette.text
+        onCanceled: root.closeNameDialog(null)
+        onSaved: function(name) { root.closeNameDialog(name) }
       }
     }
   }

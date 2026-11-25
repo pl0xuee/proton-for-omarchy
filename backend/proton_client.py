@@ -12,6 +12,8 @@ straight into the API call and the local references are dropped.
 from __future__ import annotations
 
 import asyncio
+import ipaddress
+import json
 import logging
 import os
 import threading
@@ -19,9 +21,9 @@ import time
 from typing import Any, Callable
 
 import split_tunnel
-from protocol import ProtocolError, clean_text, scrub_text
+from protocol import ProtocolError, clean_text, connect_target, scrub_text
 from server_index import FEATURE_BITS, Record, ServerIndex, feature_tags
-from telemetry import TrafficMeter, detect_interface
+from telemetry import TrafficMeter, detect_interface, read_totals
 
 log = logging.getLogger("proton-for-omarchy.client")
 
@@ -65,8 +67,57 @@ def _parse_modified(value) -> int:
         pass
     return _now_ms()
 
+MAX_LATENCY = 30
+LATENCY_CONCURRENCY = 8
+LATENCY_TIMEOUT = 1.0
+
+
 def _now_ms() -> int:
     return int(time.time() * 1000)
+
+
+SESSION_MARKER = "proton-for-omarchy-session.json"
+
+
+def _session_marker_path() -> str:
+    runtime = os.environ.get("XDG_RUNTIME_DIR", "")
+    return os.path.join(runtime, SESSION_MARKER) if runtime and os.path.isdir(runtime) else ""
+
+
+def _read_session_marker(server: str) -> int:
+    """Start time (ms) of the connection to `server` recorded this login session, or 0."""
+    path = _session_marker_path()
+    if not path or not server:
+        return 0
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        with os.fdopen(fd, "r", encoding="utf-8") as fh:
+            data = json.loads(fh.read(4096))
+    except (OSError, ValueError):
+        return 0
+    if not isinstance(data, dict) or data.get("server") != server:
+        return 0
+    since = data.get("sinceMs")
+    if type(since) is not int or not 0 < since <= _now_ms():
+        return 0
+    return since
+
+
+def _write_session_marker(server: str, since_ms: int) -> None:
+    path = _session_marker_path()
+    if not path:
+        return
+    try:
+        if not server:
+            os.unlink(path)
+            return
+        tmp = f"{path}.{os.getpid()}.tmp"
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps({"server": server, "sinceMs": since_ms}))
+        os.replace(tmp, path)
+    except OSError:
+        pass
 
 
 def _error_text(exc: BaseException) -> str:
@@ -132,6 +183,9 @@ class ProtonClient:
         self.auto_refresh = True
         self._refresher_task = None
         self._traffic_task: asyncio.Task | None = None
+        self._session: dict | None = None  # the connection being timed for history
+        self._session_task: asyncio.Task | None = None
+        self.history_enabled = True
         self._connect_task: asyncio.Task | None = None
         self._fido2_task: asyncio.Task | None = None
         self._fido2_cancel: threading.Event | None = None
@@ -406,7 +460,12 @@ class ProtonClient:
             data["server"] = self._server_info(conn)
         if kind == "connected":
             if prev != "connected" or not self.connected_since_ms:
-                self.connected_since_ms = _now_ms()
+                # After a backend or shell restart, keep the real start time of a
+                # connection that was already up instead of restarting the clock.
+                name_now = (data["server"] or {}).get("name", "")
+                since = _read_session_marker(name_now) if initial and not self.pending_target else 0
+                self.connected_since_ms = since or _now_ms()
+                _write_session_marker(name_now, self.connected_since_ms)
                 self.requires_reconnect.clear()
                 data["requiresReconnectFlags"] = []
                 iface = detect_interface()
@@ -415,6 +474,13 @@ class ProtonClient:
                     self._remember_recent(self.pending_target, data["server"])
                     self.last_target = self.pending_target
                     self.pending_target = None
+            current = self._current_target(data["server"])
+            data["target"] = current
+            name = (data["server"] or {}).get("name", "")
+            if self._session and self._session["server"] != name:
+                self._finish_session()
+            if self._session is None and name:
+                self._start_session(data["server"], current)
             data["connectedSinceMs"] = self.connected_since_ms
             data["iface"] = self.meter.iface or ""
             # details.device_ip is the user's own public IP, so it is never surfaced.
@@ -437,7 +503,11 @@ class ProtonClient:
             except Exception:  # noqa: BLE001 - not every event carries a context
                 data["forwardedPort"] = self.last_state.get("forwardedPort")
         else:
+            if (self.connected_since_ms or initial) and kind in ("disconnected", "error"):
+                _write_session_marker("", 0)
             self.connected_since_ms = 0
+            if self._session:
+                self._finish_session()
             if kind == "disconnected":
                 self.meter.reset("")
             if kind in ("disconnected", "error") and self.requires_reconnect:
@@ -511,6 +581,9 @@ class ProtonClient:
                 if not self.meter.iface:
                     self.meter.reset(detect_interface())
                 sample = self.meter.sample()
+                if sample and self._session and sample["totalRxBytes"] >= self._session["rx"] \
+                        and sample["totalTxBytes"] >= self._session["tx"]:
+                    self._session["rx"], self._session["tx"] = sample["totalRxBytes"], sample["totalTxBytes"]
                 if sample:
                     sample["uptimeSec"] = max(0, (_now_ms() - self.connected_since_ms) // 1000) \
                         if self.connected_since_ms else 0
@@ -518,6 +591,114 @@ class ProtonClient:
                 await asyncio.sleep(1)
         except asyncio.CancelledError:
             pass
+
+    # --------------------------------------------------------------- history
+
+    def _current_target(self, server: dict | None) -> dict | None:
+        """What the current connection was asked for, so it can be saved as a profile.
+
+        Falls back to the server itself when the connection was made elsewhere
+        (Proton's own app) or the remembered target no longer matches it.
+        """
+        server = server or {}
+        name = server.get("name", "")
+        target = dict((self.last_target or {}).get("target") or {})
+        target.pop("avoidCurrent", None)
+        # The remembered target only describes this connection if it landed on this
+        # very server; anything else was connected (or moved) outside the plugin.
+        stale = (self.last_target or {}).get("server") != name
+        if not target or stale:
+            if not name:
+                return None
+            try:
+                target = connect_target({"targetType": "server", "serverName": name})
+            except ProtocolError:
+                return None
+        label, detail = self._target_label(target, server)
+        return {"target": target, "label": label, "detail": detail}
+
+    def _start_session(self, server: dict, current: dict | None) -> None:
+        self._session = {"server": server.get("name", ""), "country": server.get("country", ""),
+                         "label": (current or {}).get("label") or server.get("name", ""),
+                         "start": (self.connected_since_ms // 1000) or int(time.time()), "rx": 0, "tx": 0}
+        if self._session_task is None or self._session_task.done():
+            try:
+                self._session_task = asyncio.get_running_loop().create_task(self._session_loop())
+            except RuntimeError:  # no loop (unit tests building state synchronously)
+                self._session_task = None
+
+    def _read_session_bytes(self) -> None:
+        if not self._session:
+            return
+        iface = self._session.get("iface") or self.meter.iface or detect_interface()
+        totals = read_totals(iface)
+        # Counters only grow within one tunnel; smaller numbers mean a new tunnel
+        # already took the interface name, so keep what this session measured.
+        if totals and totals[0] >= self._session["rx"] and totals[1] >= self._session["tx"]:
+            self._session["rx"], self._session["tx"] = totals
+            self._session["iface"] = iface
+
+    async def _session_loop(self) -> None:
+        # Two small sysfs reads every 30 s while connected; the interface is gone
+        # by the time the disconnect event arrives, so totals are kept as we go.
+        try:
+            while self._session:
+                self._read_session_bytes()
+                await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            pass
+
+    def _finish_session(self) -> None:
+        self._read_session_bytes()  # the tunnel may still be up while disconnecting
+        session, self._session = self._session, None
+        if self._session_task is not None:
+            self._session_task.cancel()
+            self._session_task = None
+        if not session or not self.history_enabled:
+            return
+        session["end"] = int(time.time())
+        try:
+            self.profiles.add_history(session)
+            self.emit("profiles", self.profiles.snapshot())
+        except Exception as exc:  # noqa: BLE001
+            log.warning("could not store history: %s", _error_text(exc))
+
+    def set_history_enabled(self, enabled: bool) -> None:
+        self.history_enabled = enabled
+        if not enabled and self.profiles.history:
+            self.profiles.clear_history()
+            self.emit("profiles", self.profiles.snapshot())
+
+    # --------------------------------------------------------------- latency
+
+    async def measure_latency(self, names: list[str]) -> dict:
+        """TCP connect time to each server's entry IP on port 443, in ms (None = no answer).
+
+        Bounded: at most MAX_LATENCY servers, LATENCY_CONCURRENCY at a time, 1 s each.
+        Only Proton's own server addresses from the server list are contacted.
+        """
+        self._require_login()
+        sem = asyncio.Semaphore(LATENCY_CONCURRENCY)
+
+        async def one(name: str) -> tuple[str, int | None]:
+            rec = self.index.by_name.get(name.upper())
+            entry = sorted(rec.exit_ips)[0] if rec and rec.exit_ips else ""
+            try:
+                ip = str(ipaddress.ip_address(entry))
+            except ValueError:
+                return name, None
+            async with sem:
+                started = time.monotonic()
+                try:
+                    _, writer = await asyncio.wait_for(asyncio.open_connection(ip, 443), LATENCY_TIMEOUT)
+                except (OSError, asyncio.TimeoutError):
+                    return name, None
+                elapsed = round((time.monotonic() - started) * 1000)
+                writer.close()
+            return name, max(1, elapsed)
+
+        results = await asyncio.gather(*(one(n) for n in names[:MAX_LATENCY]))
+        return {"latency": dict(results)}
 
     # --------------------------------------------------------------- connect
 

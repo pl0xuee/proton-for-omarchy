@@ -48,6 +48,9 @@ Item {
   property var capabilities: ({ protocols: [], splitTunneling: false, fido2: false })
   property var favorites: []
   property var recents: []
+  property var history: []
+  // What the live connection was asked for ({target, label, detail}); saved as a profile.
+  property var currentTarget: null
   property var countries: []
   property int serverCount: 0
   property int countryCount: 0
@@ -84,8 +87,56 @@ Item {
   readonly property int tier: auth && auth.tier ? auth.tier : 0
   readonly property bool freeTier: loggedIn && tier < 1
   readonly property string statusText: Model.statusLine(connectionState, server, details)
+
+  // Bar hover tooltip: the essentials without opening the panel. Refreshed
+  // every 30 s while connected so the elapsed time stays roughly current.
+  property real _tooltipTick: 0
+  Timer {
+    interval: 30000
+    repeat: true
+    running: root.active && root.connected
+    onTriggered: root._tooltipTick = Date.now()
+  }
+  readonly property string tooltipText: {
+    var tick = _tooltipTick
+    var title = "Proton VPN"
+    if (bridgeFailed || depsMissing) return title + "\n" + strings.t("tooltip.problem", "Backend problem: open the panel for details")
+    if (snapshotLoaded && !loggedIn) return title + "\n" + strings.t("tooltip.signedOut", "Signed out: click to sign in")
+    var st = connectionState
+    var name = server && server.name ? String(server.name) : ""
+    if (st === "connected") {
+      var lines = [title + " · " + strings.t("tooltip.connected", "Connected")]
+      lines.push([name, Model.locationLabel(server)].filter(function(x) { return x !== "" }).join(" · "))
+      if (details && details.vpnIp) lines.push(strings.t("tooltip.vpnIp", "VPN IP %1").arg(details.vpnIp))
+      var meta = []
+      if (server && server.protocolLabel) meta.push(String(server.protocolLabel))
+      if (connectedSinceMs > 0) meta.push(Model.shortDuration((Date.now() - connectedSinceMs) / 1000))
+      if (meta.length) lines.push(meta.join(" · "))
+      return lines.join("\n")
+    }
+    if (st === "connecting") return title + " · " + strings.t("tooltip.connecting", "Connecting…") + (name ? "\n" + name : "")
+    if (st === "disconnecting") return title + " · " + strings.t("tooltip.disconnecting", "Disconnecting…")
+    if (st === "error") return title + " · " + strings.t("tooltip.error", "Connection problem") + (errorMessage ? "\n" + errorMessage : "")
+    return title + " · " + strings.t("tooltip.disconnected", "Disconnected") + "\n"
+           + strings.t("tooltip.disconnectedHint", "Right-click to connect to the fastest server")
+  }
   readonly property bool panelOpenWanted: _panelOpen && setting("bandwidthPolling", true)
   property bool _panelOpen: false
+
+  // ----------------------------------------------------------- links
+  // Constant Proton URLs only; nothing user-controlled is ever opened.
+  readonly property string pricingUrl: "https://protonvpn.com/pricing"
+  readonly property string signupUrl: "https://account.protonvpn.com/signup"
+  signal upgradeOffered(string reason)
+  // Panel open: offer the plans page. Closed (bar click, IPC, startup): a plain
+  // error, so a modal does not pop up out of context the next time it opens.
+  function offerUpgrade(reason) {
+    var text = String(reason || strings.t("common.plusRequired", "Requires VPN Plus")).replace(/[.\s]+$/, "")
+    if (_panelOpen) upgradeOffered(text)
+    else _actionFailed({ message: text })
+  }
+  function openPricing() { Qt.openUrlExternally(pricingUrl) }
+  function openSignup() { Qt.openUrlExternally(signupUrl) }
 
   // ----------------------------------------------------------- updates
   readonly property bool checkForUpdates: setting("checkForUpdates", true)
@@ -176,6 +227,7 @@ Item {
     crashCount = 0
     if (!wasReady && panelOpenWanted) request("set_panel_open", { open: true })
     if (!wasReady && !autoRefreshWanted) request("set_auto_refresh", { enabled: false })
+    if (!wasReady && !historyWanted) request("set_history", { enabled: false })
     deps = s.deps || deps
     auth = s.auth || auth
     if (s.state) _applyState(s.state)
@@ -200,6 +252,7 @@ Item {
     var prev = realState
     realState = String(st.connectionState || "disconnected")
     server = st.server || null
+    currentTarget = realState === "connected" ? (st.target || null) : null
     details = st.connectionDetails || (realState === "connected" ? details : null)
     forwardedPort = st.forwardedPort || null
     connectedSinceMs = Number(st.connectedSinceMs || 0)
@@ -217,6 +270,7 @@ Item {
     if (!p) return
     favorites = p.favorites || []
     recents = p.recents || []
+    history = p.history || []
   }
 
   function _applyServers(s) {
@@ -284,7 +338,8 @@ Item {
       pendingLabel = ""
       if (!ok) {
         _desired = ""
-        if (error && error.code !== "cancelled" && !(done && done(false, error))) _actionFailed(error)
+        if (error && error.code === "upgrade_required" && !(done && done(false, error))) offerUpgrade(Model.sanitizeText(error.message || "", 120))
+        else if (error && error.code !== "cancelled" && !(done && done(false, error))) _actionFailed(error)
       } else if (done) done(true, null)
     }, 60000)
   }
@@ -415,6 +470,31 @@ Item {
   function toggleFavorite(label, target, detail, callback) {
     request("toggle_favorite", { label: label || "", target: target, detail: detail || "" }, function(ok, data, error) {
       if (!ok) _actionFailed(error)
+      if (callback) callback(ok, data, error)
+    })
+  }
+
+  readonly property bool historyWanted: setting("connectionHistory", true) !== false
+  onHistoryWantedChanged: if (bridgeReady) request("set_history", { enabled: historyWanted })
+
+  function clearHistory() {
+    request("clear_history", {}, function(ok, data, error) { if (!ok) _actionFailed(error) })
+  }
+
+  // Up to 30 server names; the callback gets {name: ms or null}.
+  function measureLatency(names, callback) {
+    request("measure_latency", { servers: names.slice(0, 30) }, function(ok, data) {
+      callback(ok && data ? (data.latency || {}) : {})
+    }, 15000)
+  }
+
+  // Save (or, with id, rename/repoint) a named profile.
+  function saveProfile(name, target, id, detail, callback) {
+    var profile = { name: name, target: target, detail: detail || "" }
+    if (id) profile.id = id
+    request("save_profile", { profile: profile }, function(ok, data, error) {
+      if (!ok) _actionFailed(error)
+      else showToast(strings.t("profiles.saved", "Saved as “%1”").replace("%1", Model.sanitizeText(name, 80)))
       if (callback) callback(ok, data, error)
     })
   }

@@ -36,6 +36,9 @@ before=$(sha1sum i18n/en.json)
 python3 scripts/extract_strings.py >/dev/null || status=1
 [ "$before" = "$(sha1sum i18n/en.json)" ] && echo "i18n/en.json: up to date" || { echo "i18n/en.json was stale (regenerated)"; status=1; }
 
+step "Translations match the English catalog"
+python3 scripts/check_translations.py || status=1
+
 step "Omarchy plugin validator"
 if command -v omarchy-plugin-validate >/dev/null; then omarchy-plugin-validate . || status=1
 elif [ -x /usr/share/omarchy/bin/omarchy-plugin-validate ]; then /usr/share/omarchy/bin/omarchy-plugin-validate . || status=1

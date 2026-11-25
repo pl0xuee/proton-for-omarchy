@@ -37,7 +37,7 @@ COMMANDS = frozenset({
     "auth_login", "auth_2fa_totp", "auth_2fa_fido2_start", "auth_2fa_fido2_pin",
     "auth_2fa_fido2_cancel", "auth_logout", "auth_refresh_account",
     "diagnostics", "copy_clipboard", "ping", "claim_boot_autoconnect",
-    "check_update", "dismiss_update",
+    "check_update", "dismiss_update", "clear_history", "set_history", "measure_latency",
 })
 
 

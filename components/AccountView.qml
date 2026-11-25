@@ -29,6 +29,7 @@ Item {
   readonly property bool fido2Supported: svc && svc.auth && svc.auth.supportsFido2 === true
   property bool showPassword: false
   property bool diagOpen: false
+  property bool historyOpen: false
   property var diagChecks: []
   property bool diagLoading: false
 
@@ -41,6 +42,13 @@ Item {
     totpField.text = ""
     pinField.text = ""
     showPassword = false
+  }
+
+  // Panel closed: start collapsed next time (diagnostics would be stale anyway).
+  function resetView() {
+    diagOpen = false
+    historyOpen = false
+    diagChecks = []
   }
 
   function focusFirstField() {
@@ -128,7 +136,7 @@ Item {
 
   function buildRows() {
     if (!svc) return []
-    if (step === "credentials") return [["user"], ["pass", "showPass"], ["signIn"]]
+    if (step === "credentials") return [["user"], ["pass", "showPass"], ["signIn"], ["signup"]]
     if (step === "2fa") {
       var rows = []
       if (svc.fido2Prompt === "pin") rows.push(["pin"])
@@ -136,8 +144,10 @@ Item {
       rows.push(["totp"], ["verify", "backToLogin"])
       return rows
     }
-    var acct = [["refreshPlan"], ["diag"]]
+    var acct = svc.freeTier ? [["upgrade"], ["refreshPlan"], ["diag"]] : [["refreshPlan"], ["diag"]]
     if (diagOpen) acct.push(["copyDiag", "restartBridge"])
+    acct.push(["history"])
+    if (historyOpen && svc.history.length > 0) acct.push(["clearHistory"])
     acct.push(["signOut"])
     return acct
   }
@@ -162,6 +172,7 @@ Item {
   function back() {
     if (step === "2fa") { svc.backToCredentials(); return true }
     if (diagOpen) { diagOpen = false; return true }
+    if (historyOpen) { historyOpen = false; return true }
     return false
   }
   function textKey(text) { return false }
@@ -177,6 +188,8 @@ Item {
     else if (key === "verify") submitTotp()
     else if (key === "backToLogin") svc.backToCredentials()
     else if (key === "refreshPlan") svc.refreshAccount()
+    else if (key === "upgrade") svc.openPricing()
+    else if (key === "signup") svc.openSignup()
     else if (key === "diag") { diagOpen = !diagOpen; if (diagOpen) loadDiagnostics() }
     else if (key === "copyDiag") {
       var lines = []
@@ -187,6 +200,11 @@ Item {
       svc.copyText(lines.join("\n"), t("account.diagnosticsReport", "Diagnostics"))
     }
     else if (key === "restartBridge") svc.restartBridge()
+    else if (key === "history") historyOpen = !historyOpen
+    else if (key === "clearHistory") {
+      confirmRequested(t("history.clearConfirm", "Clear your connection history?"), t("history.clear", "Clear history"),
+                       function() { root.svc.clearHistory() })
+    }
     else if (key === "signOut") signOut()
   }
 
@@ -316,6 +334,18 @@ Item {
           hasCursor: cursorModel.has("signIn")
           onHovered: cursorModel.setId("signIn")
           onClicked: root.activateKey("signIn")
+        }
+
+        Chip {
+          width: parent.width
+          cursorKey: "signup"
+          theme: root.theme
+          iconText: "󰏌"
+          text: root.t("account.createAccount", "New to Proton? Create a free account")
+          tooltipText: "account.protonvpn.com"
+          hasCursor: cursorModel.has("signup")
+          onHovered: cursorModel.setId("signup")
+          onClicked: root.activateKey("signup")
         }
       }
 
@@ -513,6 +543,19 @@ Item {
         }
 
         SettingRow {
+          visible: root.svc && root.svc.freeTier
+          width: parent.width
+          cursorKey: "upgrade"
+          theme: root.theme
+          title: root.t("account.upgrade", "Upgrade to VPN Plus")
+          subtitle: root.t("account.upgradeHelp", "Every country, Secure Core, P2P, streaming and NetShield")
+          hasCursor: cursorModel.has("upgrade")
+          onHovered: cursorModel.setId("upgrade")
+          onActivated: root.activateKey("upgrade")
+          trailing: PlainText { text: "󰏌"; color: Commons.Color.accent; font.pixelSize: Style.font.iconSmall }
+        }
+
+        SettingRow {
           width: parent.width
           cursorKey: "refreshPlan"
           theme: root.theme
@@ -617,6 +660,88 @@ Item {
               onHovered: cursorModel.setId("restartBridge")
               onClicked: root.activateKey("restartBridge")
             }
+          }
+        }
+
+        SettingRow {
+          width: parent.width
+          cursorKey: "history"
+          theme: root.theme
+          title: root.t("history.title", "Connection history")
+          subtitle: root.svc && root.svc.historyWanted
+                    ? root.t("history.help", "Your last 30 connections, kept only on this computer")
+                    : root.t("history.off", "Off. Turn on Keep connection history in Settings")
+          hasCursor: cursorModel.has("history")
+          onHovered: cursorModel.setId("history")
+          onActivated: root.activateKey("history")
+          trailing: PlainText {
+            text: "󰅀"
+            rotation: root.historyOpen ? 180 : 0
+            color: root.theme.dim
+            font.pixelSize: Style.font.iconSmall
+            Behavior on rotation { enabled: !Style.reduceMotion; NumberAnimation { duration: Style.duration(160); easing.type: Easing.OutCubic } }
+          }
+        }
+
+        Column {
+          visible: root.historyOpen
+          width: parent.width
+          spacing: Style.space(6)
+          leftPadding: Style.space(10)
+
+          PlainText {
+            visible: root.svc && root.svc.history.length === 0
+            width: parent.width - Style.space(10)
+            text: root.t("history.empty", "No connections recorded yet.")
+            color: root.theme.dim
+            font.pixelSize: Style.font.bodySmall
+          }
+
+          Repeater {
+            model: root.svc ? root.svc.history : []
+            Column {
+              required property var modelData
+              width: parent.width - Style.space(24)
+              spacing: Style.space(1)
+              RowLayout {
+                width: parent.width
+                spacing: Style.space(8)
+                PlainText {
+                  Layout.fillWidth: true
+                  text: String(modelData.label || modelData.server)
+                  color: root.theme.text
+                  font.pixelSize: Style.font.bodySmall
+                  elide: Text.ElideRight
+                }
+                PlainText {
+                  text: String(modelData.server || "")
+                  visible: String(modelData.label || "") !== String(modelData.server || "")
+                  color: root.theme.dim
+                  font.pixelSize: Style.font.caption
+                }
+              }
+              PlainText {
+                width: parent.width
+                text: new Date(modelData.start * 1000).toLocaleString(Qt.locale(), Locale.ShortFormat)
+                      + " · " + Model.shortDuration(modelData.end - modelData.start)
+                      + (modelData.rx || modelData.tx ? " · ↓ " + Model.formatBytes(modelData.rx) + "  ↑ " + Model.formatBytes(modelData.tx) : "")
+                color: root.theme.dim
+                font.pixelSize: Style.font.caption
+                font.features: { "tnum": 1 }
+                elide: Text.ElideRight
+              }
+            }
+          }
+
+          Chip {
+            visible: root.svc && root.svc.history.length > 0
+            cursorKey: "clearHistory"
+            theme: root.theme
+            iconText: "󰆴"
+            text: root.t("history.clear", "Clear history")
+            hasCursor: cursorModel.has("clearHistory")
+            onHovered: cursorModel.setId("clearHistory")
+            onClicked: root.activateKey("clearHistory")
           }
         }
 

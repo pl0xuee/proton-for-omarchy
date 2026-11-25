@@ -46,10 +46,10 @@ The restart loads the new panel files. When a new release is out, the Home tab s
    omarchy plugin remove pl0xuee.proton-for-omarchy
    ```
 
-3. Optional: delete the favorites file with `rm -f ~/.config/omarchy/proton-for-omarchy-state.json`.
+3. Optional: delete the favorites and history file with `rm -f ~/.config/omarchy/proton-for-omarchy-state.json`.
 4. Optional: if you installed Proton VPN only for this plugin, run `sudo systemctl disable --now proton.VPN.service` and `sudo pacman -Rns proton-vpn-cli`.
 
-The plugin changes no system files. Its only writes are the favorites file above and a per-session marker in `$XDG_RUNTIME_DIR`, which is cleared at logout. Proton VPN settings belong to Proton's own config, which is kept so the Proton app still works.
+The plugin changes no system files. Its only writes are the favorites file above and two small per-session markers in `$XDG_RUNTIME_DIR` (startup connect, and when the current connection started), which are cleared at logout. Proton VPN settings belong to Proton's own config, which is kept so the Proton app still works.
 
 ## Using it
 
@@ -58,8 +58,14 @@ The plugin changes no system files. Its only writes are the favorites file above
 | Left click | Open or close the panel |
 | Right click | Connect to the fastest server, or disconnect |
 | Middle click | Refresh status and server loads |
+| Hover | Status, server, VPN IP, protocol and time connected |
 
-The panel has four tabs: **Home** (status, quick actions, security, favorites and recents), **Servers** (search, filters, then country → city → server), **Settings** and **Account**.
+The panel has four tabs: **Home** (status, quick actions, security, favorites and recents), **Servers** (search, filters, then country → city → server), **Settings** and **Account** (plan, upgrade, system health and connection history).
+
+- **Profiles**: while connected, **Save this connection as a profile** on Home stores it under a name of your choice. Press `n` on a favorite to rename it, or on a recent to save it with a name. Profiles keep what you connected to (for example "fastest in Switzerland" or "fastest P2P"), not the protocol or other settings.
+- **Ping sort**: inside a city or Secure Core list, the sort button gains **Ping**. It times a TCP connection to the 30 least-loaded servers and lists them fastest first. While you are connected the times are measured through the VPN, so treat them as a rough guide.
+- **Connection history**: Account → **Connection history** lists your last 30 connections with duration and data used. Turn it off under Settings, which also clears it.
+- **Languages**: the panel follows the language set under Omarchy's Setup → Language. It ships English, Danish, Dutch, French, German, Italian, Japanese, Korean, Polish, Portuguese (Brazil), Simplified Chinese, Spanish (Mexico) and Swedish.
 
 | Key | Action |
 |---|---|
@@ -72,7 +78,8 @@ The panel has four tabs: **Home** (status, quick actions, security, favorites an
 | `/` | Search servers |
 | `s` | Switch to the fastest other server, with fresh loads (Home, while connected) |
 | `c` / `p` | Copy the VPN IP or forwarded port (Home) |
-| `f` | Favorite the highlighted country, city or server |
+| `f` | Favorite the highlighted country, city, server or recent |
+| `n` | Rename a favorite, or save a recent or the current connection as a named profile (Home) |
 | `x` / `Delete` | Remove a favorite, app, IP or DNS entry |
 | `Ctrl+j` / `Ctrl+k` | Reorder custom DNS servers |
 | `Esc` | Close a dialog, clear search, go up a level, then close |
@@ -102,12 +109,14 @@ Set these from the panel's Settings tab, or in the bar widget settings:
 - `bandwidthPolling`: live traffic speed while the panel is open
 - `autoRefreshServers`: refresh server loads in the background
 - `checkForUpdates`: check GitHub for a newer release twice a day (default on)
+- `connectionHistory`: keep a local history of your last 30 connections (default on; turning it off clears it)
 
 ## Privacy and security
 
 - Your Proton session lives only in the system keyring, managed by Proton's own libraries. Passwords, 2FA codes and security key PINs travel only over a private pipe to the backend. They never go into command lines, environment variables, files or logs, and the panel clears them on submit, on error and on close.
 - Apart from Proton, the plugin's only network request is the optional update check: an anonymous HTTPS request to the GitHub releases API, from which it reads only the version tag. Turn it off with `checkForUpdates`. There are no IP lookups. The VPN IP shown comes from Proton's connection details or server list, and your real IP is never displayed.
-- Favorites and recents are stored in `~/.config/omarchy/proton-for-omarchy-state.json`, which is written atomically with `0600` permissions.
+- Ping sort opens a plain TCP connection to Proton servers' own addresses from the server list, and only when you pick it.
+- Favorites, recents and the connection history (server, start and end time, data used) are stored in `~/.config/omarchy/proton-for-omarchy-state.json`, which is written atomically with `0600` permissions. Nothing in it leaves your computer.
 
 ## Troubleshooting
 
@@ -123,6 +132,7 @@ Open **Account → System health** for a check of NetworkManager, the keyring, t
 ```sh
 scripts/verify.sh                 # unit tests, safety audit, qmllint, catalog sync, plugin validator
 python3 scripts/extract_strings.py  # regenerate i18n/en.json from the English fallbacks in the QML
+python3 scripts/check_translations.py  # every catalog: known keys, same %1 placeholders, plural forms
 ```
 
 License: GPL-3.0-or-later.

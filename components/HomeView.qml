@@ -19,6 +19,7 @@ Item {
 
   signal requestTab(int index)
   signal requestSetting(string key)
+  signal nameRequested(string title, string initial, var onSave)
 
   readonly property alias cursor: cursorModel
   readonly property var st: svc ? svc.vpnSettings : null
@@ -34,6 +35,18 @@ Item {
   readonly property bool bridgeProblem: svc && (svc.bridgeFailed || (svc.snapshotLoaded && svc.deps && svc.deps.protonApi === false))
 
   property real nowMs: Date.now()
+
+  // The live connection can be saved as a named profile unless it already is one.
+  readonly property var saveable: isConnected && svc.currentTarget && svc.currentTarget.target
+                                  && !svc.isFavorite(svc.currentTarget.target) ? svc.currentTarget : null
+
+  // Context hint for the strip under the panel.
+  readonly property string hint: {
+    var key = cursorModel.active ? cursorModel.currentId : ""
+    if (key.indexOf("fav:") === 0) return t("hints.favorite", "Enter connect · n rename · x remove")
+    if (key.indexOf("rec:") === 0) return t("hints.recent", "Enter connect · n save as profile · f favorite")
+    return ""
+  }
 
   implicitHeight: Math.min(column.implicitHeight, maxHeight)
 
@@ -69,6 +82,7 @@ Item {
     }
     if (st !== null && !bridgeProblem) rows.push(["netshield", "killswitch", "split"])
     if (svc.updateAvailable) rows.push(["runUpdate", "dismissUpdate"])
+    if (saveable) rows.push(["saveCurrent"])
     for (var i = 0; i < svc.favorites.length; i++) rows.push(["fav:" + svc.favorites[i].id])
     for (var j = 0; j < svc.recents.length; j++) rows.push(["rec:" + svc.recents[j].id])
     return rows
@@ -98,7 +112,42 @@ Item {
     if (text === "c" || text === "C") { if (ipText !== "") svc.copyText(ipText, t("home.vpnIp", "VPN IP")); return true }
     if (text === "p" || text === "P") { if (portText !== "") svc.copyText(portText, t("home.port", "Port")); return true }
     if (text === "s" || text === "S") { if (canSwitchFaster && !svc.switching) svc.switchToFastest(); return true }
+    var key = cursorModel.active ? cursorModel.currentId : ""
+    if (text === "n" || text === "N") {
+      if (key.indexOf("fav:") === 0) { renameFavorite(key.substring(4)); return true }
+      if (key.indexOf("rec:") === 0) { saveRecent(key.substring(4)); return true }
+      if (key === "saveCurrent") { saveCurrent(); return true }
+    }
+    if ((text === "f" || text === "F") && key.indexOf("rec:") === 0) {
+      var rec = entryFor(svc.recents, key.substring(4))
+      if (rec) svc.toggleFavorite(rec.label, rec.target, rec.detail)
+      return true
+    }
     return false
+  }
+
+  function saveCurrent() {
+    var cur = saveable
+    if (!cur) return
+    nameRequested(t("profiles.saveTitle", "Save this connection as"), cur.label, function(name) {
+      root.svc.saveProfile(name, cur.target, "")
+    })
+  }
+
+  function renameFavorite(id) {
+    var fav = entryFor(svc.favorites, id)
+    if (!fav) return
+    nameRequested(t("profiles.renameTitle", "Rename profile"), fav.label, function(name) {
+      root.svc.saveProfile(name, fav.target, fav.id)
+    })
+  }
+
+  function saveRecent(id) {
+    var rec = entryFor(svc.recents, id)
+    if (!rec) return
+    nameRequested(t("profiles.saveTitle", "Save this connection as"), rec.label, function(name) {
+      root.svc.saveProfile(name, rec.target, "")
+    })
   }
 
   function entryFor(list, id) {
@@ -108,7 +157,7 @@ Item {
 
   function cycleNetShield() {
     if (!st) return
-    if (svc.freeTier) { svc.showToast(t("common.plusRequired", "Requires VPN Plus")); return }
+    if (svc.freeTier) { svc.offerUpgrade(); return }
     svc.setSetting("netshield", (Number(st.netshield) + 1) % 3)
   }
 
@@ -138,6 +187,7 @@ Item {
     else if (key === "netshield") cycleNetShield()
     else if (key === "killswitch") requestSetting("killswitch")
     else if (key === "split") requestSetting("split_tunneling")
+    else if (key === "saveCurrent") saveCurrent()
     else if (key.indexOf("fav:") === 0) {
       var fav = entryFor(svc.favorites, key.substring(4))
       if (fav) svc.connectTarget(fav.target, fav.label)
@@ -148,7 +198,7 @@ Item {
   }
 
   function connectFeature(feature, label) {
-    if (svc.freeTier) { svc.showToast(t("common.plusRequired", "Requires VPN Plus")); return }
+    if (svc.freeTier) { svc.offerUpgrade(); return }
     svc.connectTarget({ targetType: "feature", features: [feature] }, label)
   }
 
@@ -227,7 +277,7 @@ Item {
           }
           PlainText {
             width: parent.width
-            text: root.t("home.signedOutBody", "Your session stays in the system keyring. Nothing is stored by this plugin.")
+            text: root.t("home.signedOutBody", "Your session stays in the system keyring, never in the plugin's files.")
             color: root.theme.dim
             font.pixelSize: Style.font.bodySmall
             wrapMode: Text.WordWrap
@@ -529,6 +579,19 @@ Item {
           foreground: root.theme.text
         }
 
+        Chip {
+          visible: root.saveable !== null
+          width: parent.width
+          cursorKey: "saveCurrent"
+          theme: root.theme
+          iconText: "󰆓"
+          text: root.t("profiles.saveCurrent", "Save this connection as a profile")
+          tooltipText: root.saveable ? String(root.saveable.label || "") : ""
+          hasCursor: cursorModel.has("saveCurrent")
+          onHovered: cursorModel.setId("saveCurrent")
+          onClicked: root.activateKey("saveCurrent")
+        }
+
         PlainText {
           visible: root.svc && root.svc.favorites.length === 0
           width: parent.width
@@ -548,13 +611,16 @@ Item {
             badgeText: "󰓎"
             badgeIsGlyph: true
             title: String(modelData.label || "")
-            subtitle: String(modelData.detail || "")
+            subtitle: String(modelData.detail || "") !== title ? String(modelData.detail || "") : ""
             showRemove: true
+            showRename: true
+            renameTooltip: root.t("profiles.rename", "Rename (n)")
             connectTooltip: root.t("home.connect", "Connect")
             hasCursor: cursorModel.has(cursorKey)
             onHovered: cursorModel.setId(cursorKey)
             onActivated: root.activateKey(cursorKey)
             onConnectClicked: root.activateKey(cursorKey)
+            onRenameClicked: root.renameFavorite(modelData.id)
             onRemoveClicked: root.svc.deleteProfile(modelData.id)
           }
         }
@@ -582,11 +648,14 @@ Item {
             badgeIsGlyph: true
             title: String(modelData.label || "")
             subtitle: String(modelData.detail || "")
+            showFavorite: true
+            favorite: root.svc ? root.svc.isFavorite(modelData.target) : false
             connectTooltip: root.t("home.connect", "Connect")
             hasCursor: cursorModel.has(cursorKey)
             onHovered: cursorModel.setId(cursorKey)
             onActivated: root.activateKey(cursorKey)
             onConnectClicked: root.activateKey(cursorKey)
+            onFavoriteClicked: root.svc.toggleFavorite(modelData.label, modelData.target, modelData.detail)
           }
         }
       }

@@ -25,6 +25,8 @@ CursorSurface {
   property bool showFavorite: false
   property bool favorite: false
   property bool showRemove: false
+  property bool showRename: false
+  property string renameTooltip: ""
   property bool connecting: false
   property bool isCurrent: false
   property string connectTooltip: ""
@@ -35,6 +37,7 @@ CursorSurface {
   signal drillClicked()
   signal favoriteClicked()
   signal removeClicked()
+  signal renameClicked()
   signal hovered()
 
   readonly property bool usable: !locked && !maintenance
@@ -158,6 +161,15 @@ CursorSurface {
       foreground: root.favorite ? Commons.Color.accent : root.fg
       Layout.alignment: Qt.AlignVCenter
       onClicked: root.favoriteClicked()
+    }
+
+    PanelActionButton {
+      visible: root.showRename
+      iconText: "󰏫"
+      tooltipText: root.renameTooltip
+      foreground: root.fg
+      Layout.alignment: Qt.AlignVCenter
+      onClicked: root.renameClicked()
     }
 
     PanelActionButton {

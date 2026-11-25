@@ -40,6 +40,16 @@ def detect_interface(preferred: str = "", sys_net: str = SYS_NET) -> str:
     return ""
 
 
+def read_totals(iface: str, sys_net: str = SYS_NET) -> tuple[int, int] | None:
+    """Session byte counters (rx, tx) of a tunnel interface, or None."""
+    if not iface or "/" in iface or iface.startswith("."):
+        return None
+    stats = os.path.join(sys_net, iface, "statistics")
+    rx = _read_int(os.path.join(stats, "rx_bytes"))
+    tx = _read_int(os.path.join(stats, "tx_bytes"))
+    return None if rx is None or tx is None else (rx, tx)
+
+
 class TrafficMeter:
     def __init__(self, sys_net: str = SYS_NET):
         self.sys_net = sys_net

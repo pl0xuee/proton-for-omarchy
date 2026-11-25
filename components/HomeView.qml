@@ -68,6 +68,7 @@ Item {
       rows.push(["p2p", "sc", "random"])
     }
     if (st !== null && !bridgeProblem) rows.push(["netshield", "killswitch", "split"])
+    if (svc.updateAvailable) rows.push(["runUpdate", "dismissUpdate"])
     for (var i = 0; i < svc.favorites.length; i++) rows.push(["fav:" + svc.favorites[i].id])
     for (var j = 0; j < svc.recents.length; j++) rows.push(["rec:" + svc.recents[j].id])
     return rows
@@ -115,6 +116,8 @@ Item {
     if (!svc) return
     if (key === "restartBridge") svc.restartBridge()
     else if (key === "installDeps") svc.installDeps()
+    else if (key === "runUpdate") svc.runUpdate()
+    else if (key === "dismissUpdate") svc.dismissUpdate()
     else if (key === "signIn") requestTab(3)
     else if (key === "reconnect") svc.reconnect()
     else if (key === "errRetry") svc.reconnect()
@@ -503,6 +506,18 @@ Item {
         }
       }
 
+      // ------------------------------------------------- plugin update
+      Banner {
+        visible: root.svc && root.svc.updateAvailable && !root.bridgeProblem
+        width: parent.width
+        tone: "info"
+        text: root.svc ? root.t("home.updateAvailable", "Proton for Omarchy %1 is available").arg(root.svc.update.latest) : ""
+        actions: [{ key: "runUpdate", label: root.svc && root.svc.update.gitInstall
+                                             ? root.t("home.updateNow", "Update")
+                                             : root.t("home.copyUpdateCommand", "Copy update command") },
+                  { key: "dismissUpdate", label: root.t("home.dismiss", "Dismiss") }]
+      }
+
       // ------------------------------------------------- favorites
       Column {
         visible: root.svc && root.svc.loggedIn && !root.bridgeProblem
@@ -602,7 +617,8 @@ Item {
     property string text: ""
     property string tone: "warning"
     property var actions: []
-    readonly property color toneColor: tone === "danger" ? root.theme.danger : root.theme.warning
+    readonly property color toneColor: tone === "danger" ? root.theme.danger
+                                     : (tone === "info" ? Commons.Color.accent : root.theme.warning)
     color: Util.alpha(toneColor, 0.12)
     radius: Style.cornerRadius
     borderSpec: Border.flat(Util.alpha(toneColor, 0.45), 1)
@@ -619,7 +635,7 @@ Item {
         width: parent.width
         spacing: Style.space(8)
         PlainText {
-          text: banner.tone === "danger" ? "󰀦" : "󰋼"
+          text: banner.tone === "danger" ? "󰀦" : (banner.tone === "info" ? "󰚰" : "󰋼")
           color: banner.toneColor
           font.pixelSize: Style.font.icon
           Layout.alignment: Qt.AlignTop

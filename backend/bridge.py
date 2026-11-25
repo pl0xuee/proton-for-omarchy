@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import protocol  # noqa: E402
 import split_tunnel  # noqa: E402
+import updates  # noqa: E402
 from profiles import ProfileStore, default_state_path  # noqa: E402
 from protocol import ProtocolError  # noqa: E402
 
@@ -54,6 +55,7 @@ class Bridge:
             log.warning("state file unreadable; starting with empty favorites")
             self.profiles = ProfileStore.__new__(ProfileStore)
             self.profiles.path, self.profiles.favorites, self.profiles.recents = default_state_path(), [], []
+            self.profiles.dismissed_update = ""
         from proton_client import ProtonClient  # noqa: PLC0415 - imports only stdlib + local modules
         self.client = ProtonClient(self.emit, self.profiles)
         self.tasks: set[asyncio.Task] = set()
@@ -80,7 +82,7 @@ class Bridge:
             msg = protocol.parse_line(raw)
             req_id = msg["id"]
             cmd, params = msg["cmd"], msg["params"]
-            if cmd not in ("ping", "diagnostics", "copy_clipboard"):
+            if cmd not in ("ping", "diagnostics", "copy_clipboard", "check_update", "dismiss_update"):
                 await self.ready.wait()
             if cmd in SERIALIZED:
                 superseding = cmd == "connect" and self.client.connect_in_progress()
@@ -192,6 +194,11 @@ class Bridge:
             return await c.refresh_account()
         if cmd == "diagnostics":
             return await c.diagnostics()
+        if cmd == "check_update":
+            return await updates.check(self.profiles.dismissed_update)
+        if cmd == "dismiss_update":
+            self.profiles.dismiss_update(protocol.get_str(p, "version", required=True, max_len=16))
+            return {"dismissed": True}
         if cmd == "copy_clipboard":
             return await self.copy_clipboard(protocol.get_str(p, "text", required=True, max_len=CLIPBOARD_MAX))
         raise ProtocolError("unknown_command", "Unknown command")

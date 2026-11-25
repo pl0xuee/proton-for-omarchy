@@ -199,7 +199,7 @@ Item {
       ["protocol"], ["start:0", "start:1", "start:2"], ["vpn_accelerator"], ["moderate_nat"], ["port_forwarding"], ["ipv6"],
       ["split"], ["dns"],
       ["pref:showCountryCode"], ["tint:0", "tint:1", "tint:2"],
-      ["pref:showNotifications"], ["pref:bandwidthPolling"], ["pref:autoRefreshServers"],
+      ["pref:showNotifications"], ["pref:bandwidthPolling"], ["pref:autoRefreshServers"], ["pref:checkForUpdates"],
       ["anonymous_crash_reports"], ["telemetry"], ["recommended"]
     ]
   }
@@ -524,6 +524,11 @@ Item {
         PrefRow {
           key: "autoRefreshServers"
           title: root.t("settings.autoRefreshServers", "Refresh server loads in the background")
+          fallback: true
+        }
+        PrefRow {
+          key: "checkForUpdates"
+          title: root.t("settings.checkForUpdates", "Check GitHub for plugin updates")
           fallback: true
         }
         ToggleRow {

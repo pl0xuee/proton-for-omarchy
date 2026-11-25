@@ -27,6 +27,16 @@ scripts/install-local.sh            # copies runtime files, rescans, enables in 
 scripts/install-local.sh --no-enable
 ```
 
+## Update
+
+`omarchy update` updates Proton's packages but not plugins. To get a new version of this plugin, run:
+
+```sh
+omarchy plugin update pl0xuee.proton-for-omarchy && omarchy-restart-shell
+```
+
+The restart loads the new panel files. When a new release is out, the Home tab shows **Proton for Omarchy x.y.z is available**. Its **Update** button runs the command above in a terminal, which shows the changes and asks before applying them. If you installed from a checkout with `scripts/install-local.sh`, run that script again instead. You can turn the check off with `checkForUpdates`, or under Settings.
+
 ## Remove
 
 1. Optional: sign out under **Account** first, to clear the Proton session from the system keyring.
@@ -91,11 +101,12 @@ Set these from the panel's Settings tab, or in the bar widget settings:
 - `showNotifications`: desktop notifications on connect, disconnect and errors
 - `bandwidthPolling`: live traffic speed while the panel is open
 - `autoRefreshServers`: refresh server loads in the background
+- `checkForUpdates`: check GitHub for a newer release twice a day (default on)
 
 ## Privacy and security
 
 - Your Proton session lives only in the system keyring, managed by Proton's own libraries. Passwords, 2FA codes and security key PINs travel only over a private pipe to the backend. They never go into command lines, environment variables, files or logs, and the panel clears them on submit, on error and on close.
-- The plugin makes no third-party requests. The VPN IP shown comes from Proton's connection details or server list; your real IP is never displayed.
+- Apart from Proton, the plugin's only network request is the optional update check: an anonymous HTTPS request to the GitHub releases API, from which it reads only the version tag. Turn it off with `checkForUpdates`. There are no IP lookups. The VPN IP shown comes from Proton's connection details or server list, and your real IP is never displayed.
 - Favorites and recents are stored in `~/.config/omarchy/proton-for-omarchy-state.json`, which is written atomically with `0600` permissions.
 
 ## Troubleshooting

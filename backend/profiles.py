@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import stat
 import tempfile
 import time
@@ -20,6 +21,7 @@ from protocol import ProtocolError, clean_text, connect_target
 MAX_FAVORITES = 50
 MAX_RECENTS = 5
 MAX_STATE_BYTES = 1 << 20
+_VERSION_RE = re.compile(r"^\d{1,4}\.\d{1,4}\.\d{1,4}$")
 
 
 def _safe_ts(value: Any) -> int:
@@ -74,6 +76,7 @@ class ProfileStore:
         self.path = path or default_state_path()
         self.favorites: list[dict] = []
         self.recents: list[dict] = []
+        self.dismissed_update = ""
         self.load()
 
     # --- persistence -------------------------------------------------------
@@ -98,6 +101,8 @@ class ProfileStore:
             raw = {}
         self.favorites = self._sanitize_list(raw.get("favorites"), MAX_FAVORITES)
         self.recents = self._sanitize_list(raw.get("recents"), MAX_RECENTS)
+        dismissed = raw.get("dismissedUpdate")
+        self.dismissed_update = dismissed if isinstance(dismissed, str) and _VERSION_RE.match(dismissed) else ""
 
     def _sanitize_list(self, items: Any, limit: int) -> list[dict]:
         out: list[dict] = []
@@ -151,7 +156,8 @@ class ProfileStore:
         directory = os.path.dirname(self.path)
         os.makedirs(directory, mode=0o700, exist_ok=True)
         payload = json.dumps({"version": STATE_VERSION, "favorites": self.favorites,
-                              "recents": self.recents}, indent=1, ensure_ascii=False)
+                              "recents": self.recents, "dismissedUpdate": self.dismissed_update},
+                             indent=1, ensure_ascii=False)
         fd, tmp = tempfile.mkstemp(prefix=".proton-for-omarchy-", suffix=".tmp", dir=directory)
         try:
             os.fchmod(fd, 0o600)
@@ -220,6 +226,17 @@ class ProfileStore:
             return False
         self._commit(kept)
         return True
+
+    def dismiss_update(self, version: str) -> None:
+        if not _VERSION_RE.match(version):
+            raise ProtocolError("bad_param", "Invalid version")
+        previous = self.dismissed_update
+        self.dismissed_update = version
+        try:
+            self.save()
+        except ProtocolError:
+            self.dismissed_update = previous
+            raise
 
     def find(self, profile_id: str) -> dict | None:
         for item in self.favorites + self.recents:

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "pl0xuee.proton-for-omarchy",
   "name": "Proton for Omarchy",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "pl0xuee",
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/pl0xuee/proton-for-omarchy",
@@ -28,7 +28,8 @@
       "showNotifications": true,
       "bandwidthPolling": true,
       "autoRefreshServers": true,
-      "connectOnStartup": "off"
+      "connectOnStartup": "off",
+      "checkForUpdates": true
     },
     "schema": [
       {
@@ -63,6 +64,12 @@
         "key": "showNotifications",
         "type": "boolean",
         "label": "Show desktop notifications on connect, disconnect, and errors",
+        "defaultValue": true
+      },
+      {
+        "key": "checkForUpdates",
+        "type": "boolean",
+        "label": "Check GitHub for new versions of this plugin",
         "defaultValue": true
       },
       {

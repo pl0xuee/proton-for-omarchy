@@ -72,7 +72,9 @@
   "home.connectFastest": "Connect to fastest",
   "home.connectionFailed": "The VPN connection failed",
   "home.copy": "Copy",
+  "home.copyUpdateCommand": "Copy update command",
   "home.disconnect": "Disconnect",
+  "home.dismiss": "Dismiss",
   "home.fastest": "Fastest server",
   "home.fastestP2P": "Fastest P2P",
   "home.favorites": "Favorites",
@@ -98,6 +100,8 @@
   "home.switchFastestTip": "Refreshes server loads and moves you off the current server",
   "home.switchingFastest": "Finding a faster server…",
   "home.turnOffKs": "Turn off Kill Switch",
+  "home.updateAvailable": "Proton for Omarchy %1 is available",
+  "home.updateNow": "Update",
   "home.vpnIp": "VPN IP",
   "killswitch.permanent": "Permanent",
   "killswitch.standard": "Standard",
@@ -142,6 +146,7 @@
   "settings.activePort": "Active port %1",
   "settings.autoRefreshServers": "Refresh server loads in the background",
   "settings.bandwidthPolling": "Live traffic while the panel is open",
+  "settings.checkForUpdates": "Check GitHub for plugin updates",
   "settings.connectOnStartup": "Connect when you log in",
   "settings.connectOnStartupHelp": "Once per session, retried while the network comes up",
   "settings.connection": "Connection",
@@ -229,5 +234,6 @@
   "tabs.home": "Home",
   "tabs.servers": "Servers",
   "tabs.settings": "Settings",
-  "toast.copied": "Copied %1"
+  "toast.copied": "Copied %1",
+  "update.localCommand": "Update command"
 }

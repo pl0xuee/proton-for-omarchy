@@ -87,6 +87,11 @@ Item {
   readonly property bool panelOpenWanted: _panelOpen && setting("bandwidthPolling", true)
   property bool _panelOpen: false
 
+  // ----------------------------------------------------------- updates
+  readonly property bool checkForUpdates: setting("checkForUpdates", true)
+  property var update: ({ latest: "", gitInstall: false, dismissed: false })
+  readonly property bool updateAvailable: checkForUpdates && update.latest !== "" && !update.dismissed
+
   Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
 
   function setting(name, fallback) {
@@ -522,6 +527,43 @@ Item {
       root.restartBridge()
     }
   }
+
+  function checkUpdate() {
+    if (!checkForUpdates) return
+    // Silent on failure: offline or blocked by the Kill Switch is normal.
+    request("check_update", {}, function (ok, data) {
+      if (ok && data) update = { latest: String(data.latest || ""), gitInstall: data.gitInstall === true,
+                                 dismissed: data.dismissed === true }
+    }, 20000)
+  }
+
+  function dismissUpdate() {
+    var version = update.latest
+    if (version === "") return
+    update = { latest: version, gitInstall: update.gitInstall, dismissed: true }
+    request("dismiss_update", { version: version })
+  }
+
+  // Opens a terminal that shows the diff, asks, updates, then restarts the
+  // shell so the new panel files load. Only constant strings reach bash.
+  function runUpdate() {
+    if (!update.gitInstall) {
+      copyText("scripts/install-local.sh", strings.t("update.localCommand", "Update command"))
+      return
+    }
+    Quickshell.execDetached(["omarchy-launch-floating-terminal-with-presentation",
+                             "omarchy plugin update pl0xuee.proton-for-omarchy && omarchy-restart-shell"])
+  }
+
+  // First check a minute after start (keeps login quiet), then twice a day.
+  Timer {
+    id: updateTimer
+    interval: root.update.latest === "" && !root._updateCheckedOnce ? 60000 : 12 * 3600 * 1000
+    repeat: true
+    running: root.active && root.bridgeReady && root.checkForUpdates
+    onTriggered: { root._updateCheckedOnce = true; root.checkUpdate() }
+  }
+  property bool _updateCheckedOnce: false
 
   function restartBridge() {
     crashCount = 0

@@ -121,7 +121,9 @@ CursorSurface {
 
         PlainText {
           visible: text !== ""
-          Layout.maximumWidth: parent.width * 0.5
+          // Bound to the row, not this layout, so the layout never re-triggers itself.
+          Layout.maximumWidth: Math.max(Style.space(60), root.width * 0.4)
+          elide: Text.ElideRight
           text: root.subtitle
           color: root.theme ? root.theme.dim : root.fg
           font.pixelSize: Style.font.caption

@@ -28,6 +28,7 @@ stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
 for f in "${FILES[@]}"; do [[ -f $f ]] && cp -- "$f" "$stage/"; done
 for d in "${DIRS[@]}"; do cp -R -- "$d" "$stage/"; done
+mkdir -p "$stage/scripts" && cp -- scripts/install-deps.sh "$stage/scripts/"
 find "$stage" -name '__pycache__' -type d -prune -exec rm -rf {} +
 if find "$stage" -type l | grep -q .; then echo "refusing to install: symlinks found" >&2; exit 1; fi
 

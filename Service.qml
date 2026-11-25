@@ -20,6 +20,10 @@ Item {
 
   // ---------------------------------------------------------------- bridge
   readonly property string bridgePath: decodeURIComponent(String(Qt.resolvedUrl("backend/bridge.py")).replace(/^file:\/\//, ""))
+  readonly property string depsScriptPath: decodeURIComponent(String(Qt.resolvedUrl("scripts/install-deps.sh")).replace(/^file:\/\//, ""))
+  // Proton's libraries are not installed (or failed to import): offer the installer.
+  readonly property bool depsMissing: snapshotLoaded && deps && deps.protonApi === false
+  property int _depsChecks: 0
   property bool bridgeRunning: false
   property bool bridgeReady: false
   property bool bridgeFailed: false
@@ -493,6 +497,30 @@ Item {
       if (ok) showToast(strings.t("toast.copied", "Copied %1").arg(label || value))
       else _actionFailed(error)
     }, 8000)
+  }
+
+  // Opens a terminal running scripts/install-deps.sh (pacman needs sudo, so it
+  // must be interactive), then keeps re-checking until the libraries load.
+  function installDeps() {
+    var path = depsScriptPath
+    // The launcher runs its argument through bash: only allow a plain path.
+    if (!/^\/[A-Za-z0-9._\/-]+$/.test(path)) {
+      showToast(strings.t("deps.manual", "Run scripts/install-deps.sh from the plugin folder"))
+      return
+    }
+    Quickshell.execDetached(["omarchy-launch-floating-terminal-with-presentation", "'" + path + "'"])
+    _depsChecks = 0
+    depsRecheck.restart()
+  }
+
+  Timer {
+    id: depsRecheck
+    interval: 10000
+    repeat: true
+    onTriggered: {
+      if (!root.depsMissing || ++root._depsChecks > 30) { stop(); return }
+      root.restartBridge()
+    }
   }
 
   function restartBridge() {

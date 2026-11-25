@@ -50,7 +50,7 @@ Item {
   function buildRows() {
     var rows = []
     if (!svc) return rows
-    if (bridgeProblem) { rows.push(["restartBridge"]); return rows }
+    if (bridgeProblem) { rows.push(svc.depsMissing ? ["installDeps", "restartBridge"] : ["restartBridge"]); return rows }
     if (!svc.loggedIn) { rows.push(["signIn"]); return rows }
     if (needsReconnect) rows.push(["reconnect"])
     if (hasError) rows.push(["errRetry", "errDisconnect"])
@@ -114,6 +114,7 @@ Item {
   function activateKey(key) {
     if (!svc) return
     if (key === "restartBridge") svc.restartBridge()
+    else if (key === "installDeps") svc.installDeps()
     else if (key === "signIn") requestTab(3)
     else if (key === "reconnect") svc.reconnect()
     else if (key === "errRetry") svc.reconnect()
@@ -199,7 +200,10 @@ Item {
         tone: "danger"
         text: root.svc && root.svc.bridgeFailed ? root.svc.bridgeError
               : (root.svc && root.svc.deps ? String(root.svc.deps.error || "") : "")
-        actions: [{ key: "restartBridge", label: root.t("home.restartBackend", "Restart backend") }]
+        actions: root.svc && root.svc.depsMissing
+                 ? [{ key: "installDeps", label: root.t("home.installDeps", "Install requirements") },
+                    { key: "restartBridge", label: root.t("home.restartBackend", "Restart backend") }]
+                 : [{ key: "restartBridge", label: root.t("home.restartBackend", "Restart backend") }]
       }
 
       // Signed out.

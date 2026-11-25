@@ -9,11 +9,16 @@ A Proton VPN control panel for the Omarchy bar: one-click connect, a fast server
 - `wl-clipboard`, for copying the IP address and forwarded port
 - Optional, for Split Tunneling: `sudo systemctl enable --now proton.VPN.service`
 
+Omarchy's plugin installer does not install system packages, so the plugin ships a helper that does. All packages come from Arch's official `extra` repo.
+
 ## Install
 
 ```sh
 omarchy plugin add https://github.com/pl0xuee/proton-for-omarchy.git --enable
+~/.config/omarchy/plugins/pl0xuee.proton-for-omarchy/scripts/install-deps.sh
 ```
+
+`install-deps.sh` installs `proton-vpn-cli` and `wl-clipboard` if they are missing, and asks before enabling the Split Tunneling daemon (`--yes` enables it without asking). If you skip it, the panel shows an **Install requirements** button that runs the same script in a terminal, then picks up the libraries on its own once they are installed.
 
 Or from a checkout:
 

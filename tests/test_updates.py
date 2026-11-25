@@ -29,6 +29,13 @@ class ParsingTests(unittest.TestCase):
         for bad in ("", "1.2", "v1.2.3-beta", "1.2.3; rm", None, "<b>1.2.3</b>"):
             self.assertIsNone(updates.parse_version(bad))
 
+    def test_plugin_version_reads_manifest(self):
+        self.assertEqual(updates.plugin_version(make_root("1.3.0")), "1.3.0")
+        self.assertEqual(updates.plugin_version(make_root("1.3.0; rm -rf")), "")
+        self.assertEqual(updates.plugin_version(tempfile.mkdtemp()), "")
+        with open(os.path.join(os.path.dirname(__file__), "..", "manifest.json")) as fh:
+            self.assertEqual(updates.plugin_version(), json.load(fh)["version"])
+
     def test_releases_url_only_for_github_repos(self):
         self.assertEqual(updates.releases_url("https://github.com/acme/repo"),
                          "https://api.github.com/repos/acme/repo/releases/latest")

@@ -46,6 +46,7 @@ Item {
   property var requiresReconnect: []
   property var vpnSettings: null
   property var capabilities: ({ protocols: [], splitTunneling: false, fido2: false })
+  property string pluginVersion: ""
   property var favorites: []
   property var recents: []
   property var history: []
@@ -233,6 +234,7 @@ Item {
     if (s.state) _applyState(s.state)
     vpnSettings = s.settings || null
     capabilities = s.capabilities || capabilities
+    pluginVersion = String((s.bridge && s.bridge.version) || pluginVersion)
     _applyProfiles(s.profiles)
     _applyServers(s.servers)
     if (auth.loggedIn) {

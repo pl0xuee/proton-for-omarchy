@@ -218,6 +218,8 @@ Item {
 
   function scrollToCursor() {
     ViewUtil.ensureVisible(flick, ViewUtil.findKey(column, cursorModel.currentId), Style.space(6))
+    // On the last row, show the version footer below it too.
+    if (cursorModel.currentId === "recommended") flick.contentY = Math.max(0, flick.contentHeight - flick.height)
   }
 
   function resetCursor() { cursorModel.reset(); if (activeSheet) activeSheet.resetCursor() }
@@ -577,6 +579,16 @@ Item {
             onClicked: root.activateKey("recommended")
           }
         }
+      }
+
+      PlainText {
+        visible: root.svc && root.svc.pluginVersion !== ""
+        width: parent.width
+        topPadding: Style.space(10)
+        horizontalAlignment: Text.AlignHCenter
+        text: root.t("settings.version", "Proton for Omarchy %1").arg(root.svc ? root.svc.pluginVersion : "")
+        color: root.theme.faint
+        font.pixelSize: Style.font.caption
       }
     }
   }

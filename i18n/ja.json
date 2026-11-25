@@ -266,5 +266,6 @@
   "tooltip.vpnIp": "VPN IP %1",
   "update.localCommand": "更新コマンド",
   "upgrade.body": "VPN Plus にアップグレードすると、全ての国、Secure Core、P2P、ストリーミング用サーバーを利用できます。",
-  "upgrade.seePlans": "プランを見る"
+  "upgrade.seePlans": "プランを見る",
+  "settings.version": "Proton for Omarchy %1"
 }

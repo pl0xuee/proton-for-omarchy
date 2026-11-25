@@ -36,6 +36,12 @@ def _manifest(root: str = ROOT) -> dict:
         return {}
 
 
+def plugin_version(root: str = ROOT) -> str:
+    """Installed version from manifest.json, "" if missing or malformed."""
+    current = parse_version(_manifest(root).get("version"))
+    return ".".join(map(str, current)) if current else ""
+
+
 def releases_url(homepage: object) -> str:
     match = HOMEPAGE_RE.match(str(homepage or ""))
     if not match or match.group(2) in (".", ".."):

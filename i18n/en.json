@@ -221,6 +221,7 @@
   "settings.tintSemantic": "Green",
   "settings.turnOffKs": "Turn off Kill Switch",
   "settings.turnOffSplit": "Turn off Split Tunneling",
+  "settings.version": "Proton for Omarchy %1",
   "settings.vpnAccelerator": "VPN Accelerator",
   "settings.vpnAcceleratorHelp": "Faster speeds over long distances",
   "split.add": "Add",

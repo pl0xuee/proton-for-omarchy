@@ -24,6 +24,7 @@ import split_tunnel
 from protocol import ProtocolError, clean_text, connect_target, scrub_text
 from server_index import FEATURE_BITS, Record, ServerIndex, feature_tags
 from telemetry import TrafficMeter, detect_interface, read_totals
+from updates import plugin_version
 
 log = logging.getLogger("proton-for-omarchy.client")
 
@@ -1290,7 +1291,7 @@ class ProtonClient:
             except Exception:  # noqa: BLE001
                 pass
         return {
-            "bridge": {"pid": os.getpid(), "startedMs": self.started_ms},
+            "bridge": {"pid": os.getpid(), "startedMs": self.started_ms, "version": plugin_version()},
             "deps": {"protonApi": self.available, "error": self.import_error,
                      "splitTunnelDaemon": split_ok},
             "auth": auth,

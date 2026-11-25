@@ -271,5 +271,6 @@
   "tooltip.vpnIp": "IP de VPN %1",
   "update.localCommand": "Comando de actualización",
   "upgrade.body": "Mejora a VPN Plus para tener todos los países y servidores Secure Core, P2P y de streaming.",
-  "upgrade.seePlans": "Ver planes"
+  "upgrade.seePlans": "Ver planes",
+  "settings.version": "Proton for Omarchy %1"
 }

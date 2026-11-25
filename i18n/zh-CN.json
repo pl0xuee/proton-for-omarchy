@@ -266,5 +266,6 @@
   "tooltip.vpnIp": "VPN IP %1",
   "update.localCommand": "更新命令",
   "upgrade.body": "升级到 VPN Plus，即可使用所有国家/地区、Secure Core、P2P 和流媒体服务器。",
-  "upgrade.seePlans": "查看套餐"
+  "upgrade.seePlans": "查看套餐",
+  "settings.version": "Proton for Omarchy %1"
 }

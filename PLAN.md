@@ -1,6 +1,6 @@
 # Protonarchy — Omarchy Proton VPN Bar Plugin Plan
 
-> **Plugin Name:** Protonarchy · **Plugin ID:** `pl0xuee.protonarchy` · **Author:** `pl0xuee`
+> **Plugin Name:** Protonarchy · **Plugin ID:** `pl0xuee.proton-for-omarchy` · **Author:** `pl0xuee`
 > **Repository:** `https://github.com/pl0xuee/omarchy-protonarchy`
 > **Install (once published):** `omarchy plugin add https://github.com/pl0xuee/omarchy-protonarchy.git --enable`
 > **Target environment verified on host:** Omarchy `4.5.0-3` (Quickshell `omarchy-shell`), Python `3.14`, `python-proton-vpn-api-core 5.8.7-1`, `proton-vpn-cli 1.0.5-1`, `proton-vpn-daemon 0.13.8-1` (`me.proton.vpn.split_tunneling` D-Bus service enabled), `python-proton-keyring-linux 0.2.3-1`, `NetworkManager` enabled, `wl-copy`.
@@ -29,8 +29,8 @@ Build a **feature-complete, native Omarchy shell bar plugin** for Proton VPN anc
 ## 2. Verified Platform Architecture & Constraints
 
 ### 2.1 Omarchy 4.5 Plugin Contract (verified via `PluginRegistry.qml` & `omarchy-plugin-validate`)
-- **Install directory**: `~/.config/omarchy/plugins/pl0xuee.protonarchy/` (installed via `omarchy plugin add https://github.com/pl0xuee/omarchy-protonarchy.git --enable` or copied during dev; hot-reloads automatically on file save, or force via `omarchy-shell shell rescanPlugins`).
-- **Plugin ID**: `pl0xuee.protonarchy`
+- **Install directory**: `~/.config/omarchy/plugins/pl0xuee.proton-for-omarchy/` (installed via `omarchy plugin add https://github.com/pl0xuee/omarchy-protonarchy.git --enable` or copied during dev; hot-reloads automatically on file save, or force via `omarchy-shell shell rescanPlugins`).
+- **Plugin ID**: `pl0xuee.proton-for-omarchy`
   - Must match `^[A-Za-z0-9][A-Za-z0-9._-]*$`, no `..`, and **must NOT start with `omarchy.`** (reserved namespace rejected by `omarchy-plugin-validate`).
 - **Manifest rules**:
   - `schemaVersion` must be numeric `1`.
@@ -38,10 +38,10 @@ Build a **feature-complete, native Omarchy shell bar plugin** for Proton VPN anc
   - `kinds: ["service", "bar-widget"]`, `keepLoaded: true`, `entryPoints: { "service": "Service.qml", "barWidget": "Panel.qml" }` (mirrors Omarchy's `omarchy.media` dual-kind architecture so multi-monitor setups share **one** `Service.qml` and **one** `bridge.py` process!).
   - `barWidget.defaultSection: "right"` places it automatically in the top-right bar section.
   - **No symlinks anywhere** inside the plugin folder (except `.git` internals). `omarchy plugin validate <dir>` enforces this strictly.
-- **IPC Target**: `ShellIpc` with `target: "pl0xuee.protonarchy"` (with `manageIpc: false` on the `qs.Ui.Panel` root so `Panel.qml` owns the extended IPC surface cleanly without duplicate handlers) exposes shell-level commands for Hyprland keybindings and scripting (`omarchy-shell pl0xuee.protonarchy toggle`, `open`, `close`, `show`, `hide`, `toggleConnection`, `connectFastest`, `connectCountry <CC>`, `disconnect`, `status`, `refresh`).
+- **IPC Target**: `ShellIpc` with `target: "pl0xuee.proton-for-omarchy"` (with `manageIpc: false` on the `qs.Ui.Panel` root so `Panel.qml` owns the extended IPC surface cleanly without duplicate handlers) exposes shell-level commands for Hyprland keybindings and scripting (`omarchy-shell pl0xuee.proton-for-omarchy toggle`, `open`, `close`, `show`, `hide`, `toggleConnection`, `connectFastest`, `connectCountry <CC>`, `disconnect`, `status`, `refresh`).
 - **Third-Party Shell API & Custom/Cloned Bar Compatibility (verified in `Bar.qml`, `PluginBarApi.qml` & `PluginShellApi.qml`)**:
   - Third-party bar widgets receive `bar` (with `foreground`, `barForeground`, `background`, `urgent`, `fontFamily`, `position`, `vertical`, `barSize`, `foregroundAnimationEnabled`, `showTooltip`, `hideTooltip`, `requestPopout`, `releasePopout`, `switchPanelFrom`) and `bar.shell.updateEntryInline(root.moduleName, entry)` scoped strictly to their own plugin ID.
-  - **Shared service lookup with safe fallback**: On stock `omarchy.bar` and cloned bars (like `pl0xuee.bar` cloned from `omarchy.bar`), `bar?.shell?.serviceFor("pl0xuee.protonarchy")` returns the single shell-mounted `Service.qml` instance shared across every monitor. On non-cloned third-party replacement bars that withhold `serviceFor`, `Panel.qml` falls back seamlessly to a lazy inline `Loader` instantiating `Service.qml` so the widget works everywhere.
+  - **Shared service lookup with safe fallback**: On stock `omarchy.bar` and cloned bars (like `pl0xuee.bar` cloned from `omarchy.bar`), `bar?.shell?.serviceFor("pl0xuee.proton-for-omarchy")` returns the single shell-mounted `Service.qml` instance shared across every monitor. On non-cloned third-party replacement bars that withhold `serviceFor`, `Panel.qml` falls back seamlessly to a lazy inline `Loader` instantiating `Service.qml` so the widget works everywhere.
 
 ### 2.2 Omarchy-Native UI & Interaction Idioms (Non-Negotiable)
 Follow the exact patterns verified in `/usr/share/omarchy/shell/Ui/` and `/usr/share/omarchy/shell/plugins/panels/{tailscale,network,dropbox}/` so Protonarchy feels indistinguishable from a first-party Omarchy widget:
@@ -111,7 +111,7 @@ Keep the repository root directly validatable by `omarchy plugin validate .` and
 
 ```text
 .
-├── manifest.json                   # Omarchy schemaVersion 1 manifest (id: "pl0xuee.protonarchy", defaultSection: "right")
+├── manifest.json                   # Omarchy schemaVersion 1 manifest (id: "pl0xuee.proton-for-omarchy", defaultSection: "right")
 ├── README.md                       # Install, keybindings, IPC commands, troubleshooting
 ├── PLAN.md                         # This implementation blueprint
 ├── Panel.qml                       # BarWidget root (extends qs.Ui.Panel): BarIconButton, ShellIpc, KeyboardPanel
@@ -142,7 +142,7 @@ Keep the repository root directly validatable by `omarchy plugin validate .` and
 ├── i18n/
 │   └── en.json                     # Complete English translation catalog (CLDR plurals, %1 args)
 ├── scripts/
-│   ├── install-local.sh            # Copies runtime files to ~/.config/omarchy/plugins/pl0xuee.protonarchy (no symlinks), validates, enables
+│   ├── install-local.sh            # Copies runtime files to ~/.config/omarchy/plugins/pl0xuee.proton-for-omarchy (no symlinks), validates, enables
 │   └── verify.sh                   # Runs omarchy plugin validate, Python unit tests, QML syntax/safety lint
 └── tests/
     ├── test_protocol.py            # NDJSON bounds, malformed input, secret-scrubbing tests
@@ -161,7 +161,7 @@ Keep the repository root directly validatable by `omarchy plugin validate .` and
 ```json
 {
   "schemaVersion": 1,
-  "id": "pl0xuee.protonarchy",
+  "id": "pl0xuee.proton-for-omarchy",
   "name": "Protonarchy",
   "version": "1.0.0",
   "author": "pl0xuee",
@@ -367,7 +367,7 @@ The plugin MUST automatically inherit and live-adapt to **any Omarchy theme** �
 Designed for 90% of daily use in 1 click or 1 keystroke:
 1. **Connection Telemetry Card** (visible when `connected`, collapses cleanly when `disconnected`):
    - **Location & Hop**: e.g. `Switzerland · Zurich` (or `Iceland → United States` badge when Secure Core is active) + Server ID `CH#12` + `LoadIndicator` (`18%`).
-   - **VPN IP Row**: `185.159.157.42` (+ IPv6 indicator if enabled) with inline copy `PanelActionButton` (`c` shortcut).
+   - **VPN IP Row**: `203.0.113.42` (+ IPv6 indicator if enabled) with inline copy `PanelActionButton` (`c` shortcut).
    - **Protocol & Port Row**: `WireGuard` badge + (when Port Forwarding is active on a P2P server) **Forwarded Port pill** `Port 54321` with 1-click copy (`p` shortcut)!
    - **Live Traffic & Uptime Strip** (when `bandwidthPolling` enabled): `↓ 4.2 MB/s   ↑ 310 KB/s   ·   01:24:18`.
    - **Reconnect Banner** (shown only if user changed Protocol / IPv6 / Custom DNS while connected): `"Changes require reconnect"` + inline `[Reconnect]` button.
@@ -472,16 +472,16 @@ Clean grouped sections matching `omarchy.network` & `omarchy.audio` aesthetics:
 | Home / Connected | `p` | Copy active forwarded port to clipboard (when available) |
 | Servers | `f` | Toggle Favorite on highlighted country / city / server |
 
-### 6.4 Shell IPC Surface (`ShellIpc` target: `pl0xuee.protonarchy`)
+### 6.4 Shell IPC Surface (`ShellIpc` target: `pl0xuee.proton-for-omarchy`)
 Enables effortless Hyprland keybindings in `~/.config/hypr/bindings.lua` and terminal scripting:
-- `omarchy-shell pl0xuee.protonarchy toggle` — open/close panel
-- `omarchy-shell pl0xuee.protonarchy open` / `close`
-- `omarchy-shell pl0xuee.protonarchy toggleConnection` — quick connect or disconnect
-- `omarchy-shell pl0xuee.protonarchy connectFastest`
-- `omarchy-shell pl0xuee.protonarchy connectCountry US`
-- `omarchy-shell pl0xuee.protonarchy disconnect`
-- `omarchy-shell pl0xuee.protonarchy status` — returns English one-line status string (e.g. `Connected: CH#12 (Zurich, CH) 185.159.157.42`)
-- `omarchy-shell pl0xuee.protonarchy refresh`
+- `omarchy-shell pl0xuee.proton-for-omarchy toggle` — open/close panel
+- `omarchy-shell pl0xuee.proton-for-omarchy open` / `close`
+- `omarchy-shell pl0xuee.proton-for-omarchy toggleConnection` — quick connect or disconnect
+- `omarchy-shell pl0xuee.proton-for-omarchy connectFastest`
+- `omarchy-shell pl0xuee.proton-for-omarchy connectCountry US`
+- `omarchy-shell pl0xuee.proton-for-omarchy disconnect`
+- `omarchy-shell pl0xuee.proton-for-omarchy status` — returns English one-line status string (e.g. `Connected: CH#12 (Zurich, CH) 203.0.113.42`)
+- `omarchy-shell pl0xuee.proton-for-omarchy refresh`
 
 ---
 
@@ -516,10 +516,10 @@ The implementing agent MUST enforce and test every item below:
 
 > **Builder Agent Handoff Notes:**
 > - This repository root is the plugin root (do not nest inside a subfolder; `git remote origin` is already configured to `https://github.com/pl0xuee/omarchy-protonarchy.git`).
-> - [mockup.html](mockup.html) is a visual design reference only — keep `mockup.html`, `PLAN.md`, `tests/`, and `.git/` out of the installed copy when `scripts/install-local.sh` copies runtime files into `~/.config/omarchy/plugins/pl0xuee.protonarchy/`.
-> - On `Panel.qml` (extending `qs.Ui.Panel`), set `manageIpc: false` and declare the full `ShellIpc { target: "pl0xuee.protonarchy" }` block directly to avoid duplicate IPC handlers.
+> - [mockup.html](mockup.html) is a visual design reference only — keep `mockup.html`, `PLAN.md`, `tests/`, and `.git/` out of the installed copy when `scripts/install-local.sh` copies runtime files into `~/.config/omarchy/plugins/pl0xuee.proton-for-omarchy/`.
+> - On `Panel.qml` (extending `qs.Ui.Panel`), set `manageIpc: false` and declare the full `ShellIpc { target: "pl0xuee.proton-for-omarchy" }` block directly to avoid duplicate IPC handlers.
 > - Use `api.refresher.set_server_list_updated_callback(...)`, `set_server_loads_updated_callback(...)`, and `set_error_callback(...)` in `backend/proton_client.py`, enabling the refresher after login and disabling cleanly on logout/shutdown.
-> - Do not overwrite or delete other widgets in `~/.config/omarchy/shell.json`; use `omarchy plugin enable pl0xuee.protonarchy` (which honors `defaultSection: "right"`).
+> - Do not overwrite or delete other widgets in `~/.config/omarchy/shell.json`; use `omarchy plugin enable pl0xuee.proton-for-omarchy` (which honors `defaultSection: "right"`).
 
 Execute in order, verifying each phase before advancing.
 
@@ -552,7 +552,7 @@ Execute in order, verifying each phase before advancing.
 3. Build `Service.qml`:
    - Spawns & manages `backend/bridge.py` (`Quickshell.Io.Process` + `SplitParser` + backoff restart + request/reply map with timeouts).
    - Optimistic `_desired` connection state, change-signature guards on server lists, clipboard helper (routed via bridge stdin to `wl-copy`), sanitized desktop notifications (`notify-send --`), and `panelOpen` forwarding to gate 1 Hz traffic telemetry.
-4. Build `Panel.qml` shell with `BarIconButton` (using native `tooltipText`, `labelText`, `iconComponent`, `onPressed`), `ShellIpc` (`pl0xuee.protonarchy`, `manageIpc: false`), shared `Service.qml` lookup (`bar?.shell?.serviceFor("pl0xuee.protonarchy")` with inline `Loader` fallback), `Commons.Translations`, and `KeyboardPanel` with lazy `content`.
+4. Build `Panel.qml` shell with `BarIconButton` (using native `tooltipText`, `labelText`, `iconComponent`, `onPressed`), `ShellIpc` (`pl0xuee.proton-for-omarchy`, `manageIpc: false`), shared `Service.qml` lookup (`bar?.shell?.serviceFor("pl0xuee.proton-for-omarchy")` with inline `Loader` fallback), `Commons.Translations`, and `KeyboardPanel` with lazy `content`.
 5. Write `tests/test_model.mjs` covering sanitization (including `<img src=...>`, `<b>`, control chars, long strings) and formatters.
 
 ### Phase 4 — Complete Panel UI & Keyboard Ergonomics
@@ -573,7 +573,7 @@ Execute in order, verifying each phase before advancing.
    - Zero symlinks in repo.
    - All Python unit tests and `Model.js` tests pass.
    - `qmllint` (if installed on host) reports zero syntax/import errors.
-2. Test local install via `scripts/install-local.sh` (copies runtime files to `~/.config/omarchy/plugins/pl0xuee.protonarchy`, runs `omarchy-shell shell rescanPlugins`, `omarchy plugin enable pl0xuee.protonarchy`, confirms bar placement in `right` section of `~/.config/omarchy/shell.json` without clobbering existing widgets).
+2. Test local install via `scripts/install-local.sh` (copies runtime files to `~/.config/omarchy/plugins/pl0xuee.proton-for-omarchy`, runs `omarchy-shell shell rescanPlugins`, `omarchy plugin enable pl0xuee.proton-for-omarchy`, confirms bar placement in `right` section of `~/.config/omarchy/shell.json` without clobbering existing widgets).
 3. Verify remote install compatibility with `omarchy plugin add https://github.com/pl0xuee/omarchy-protonarchy.git --enable` (repo root must contain `manifest.json`, zero symlinks, and a clean `README.md`).
 4. Live verification checklist on desktop:
    - Bar icon renders cleanly at horizontal top bar and vertical bar; tooltip updates and strips markup.

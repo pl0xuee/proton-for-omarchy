@@ -1032,7 +1032,7 @@ const COUNTRIES = [
     cities: [
       {
         name: "Zurich", load: 18, servers: [
-          { name: "CH#12", load: 18, ip: "185.159.157.42", features: ["P2P", "STR", "IPv6"] },
+          { name: "CH#12", load: 18, ip: "203.0.113.42", features: ["P2P", "STR", "IPv6"] },
           { name: "CH#14", load: 27, ip: "185.159.157.88", features: ["P2P", "STR", "IPv6"] },
           { name: "CH#29", load: 61, ip: "185.159.158.11", features: ["TOR", "STR"] }
         ]
@@ -1145,7 +1145,7 @@ const state = {
   connState: "connected", // "connected" | "connecting" | "disconnected"
   server: {
     name: "CH#12", countryCode: "CH", country: "Switzerland", city: "Zurich",
-    entryCountry: null, load: 18, ip: "185.159.157.42", features: ["P2P", "STR", "IPv6"],
+    entryCountry: null, load: 18, ip: "203.0.113.42", features: ["P2P", "STR", "IPv6"],
     forwardedPort: 54321
   },
   uptimeSec: 5058,
@@ -1297,7 +1297,7 @@ function connectTo(target) {
       city: target.city || "Zurich",
       entryCountry: target.entryCountry || null,
       load: target.load || 19,
-      ip: target.ip || "185.159.157.42",
+      ip: target.ip || "203.0.113.42",
       features: target.features || ["P2P", "STR", "IPv6"],
       forwardedPort: (state.settings.portForwarding && isP2P) ? (40000 + Math.floor(Math.random() * 20000)) : null
     };
@@ -1541,7 +1541,7 @@ function renderHome() {
   body.querySelector("#reconnect-btn")?.addEventListener("click", () => connectTo(state.server));
   body.querySelector("#copy-ip-btn")?.addEventListener("click", () => copyVal(state.server.ip, "VPN IP"));
   body.querySelector("#copy-port-btn")?.addEventListener("click", () => copyVal(String(state.server.forwardedPort), "Forwarded Port"));
-  body.querySelector("#quick-connect-btn")?.addEventListener("click", () => connectTo({ serverName: "CH#12", countryCode: "CH", country: "Switzerland", city: "Zurich", load: 18, ip: "185.159.157.42", features: ["P2P", "STR", "IPv6"] }));
+  body.querySelector("#quick-connect-btn")?.addEventListener("click", () => connectTo({ serverName: "CH#12", countryCode: "CH", country: "Switzerland", city: "Zurich", load: 18, ip: "203.0.113.42", features: ["P2P", "STR", "IPv6"] }));
   body.querySelector("#quick-p2p")?.addEventListener("click", () => connectTo({ serverName: "NL#18", countryCode: "NL", country: "Netherlands", city: "Amsterdam", load: 29, ip: "146.70.114.62", features: ["P2P", "STR", "IPv6"] }));
   body.querySelector("#quick-sc")?.addEventListener("click", () => connectTo({ serverName: "CH-US#1", countryCode: "US", country: "United States", city: "New York", entryCountry: "Switzerland", load: 29, ip: "149.102.228.5", features: ["SC", "STR"] }));
   body.querySelector("#quick-random")?.addEventListener("click", () => {
@@ -2215,7 +2215,7 @@ document.querySelectorAll("[data-sim]").forEach((btn) => {
     if (m === "connected") {
       state.connState = "connected";
       state.settings.killswitch = "standard";
-      state.server = { name: "CH#12", countryCode: "CH", country: "Switzerland", city: "Zurich", entryCountry: null, load: 18, ip: "185.159.157.42", features: ["P2P", "STR", "IPv6"], forwardedPort: 54321 };
+      state.server = { name: "CH#12", countryCode: "CH", country: "Switzerland", city: "Zurich", entryCountry: null, load: 18, ip: "203.0.113.42", features: ["P2P", "STR", "IPv6"], forwardedPort: 54321 };
       state.tab = "home";
     } else if (m === "securecore") {
       state.connState = "connected";

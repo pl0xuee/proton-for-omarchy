@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "id": "pl0xuee.proton-for-omarchy",
+  "name": "Proton for Omarchy",
+  "version": "1.0.0",
+  "author": "pl0xuee",
+  "license": "GPL-3.0-or-later",
+  "homepage": "https://github.com/pl0xuee/omarchy-protonarchy",
+  "description": "Fast, secure, feature-complete Proton VPN control panel for the Omarchy bar.",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Proton for Omarchy",
+    "description": "Proton VPN: quick connect, server browser, Secure Core, NetShield, Kill Switch, Port Forwarding, and Split Tunneling.",
+    "category": "Network",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "showCountryCode": true,
+      "connectedIconTint": "accent",
+      "showNotifications": true,
+      "bandwidthPolling": true,
+      "autoRefreshServers": true,
+      "connectOnStartup": "off"
+    },
+    "schema": [
+      {
+        "key": "connectOnStartup",
+        "type": "enum",
+        "label": "Connect when you log in (once per session)",
+        "options": [
+          "off",
+          "fastest",
+          "last"
+        ],
+        "defaultValue": "off"
+      },
+      {
+        "key": "showCountryCode",
+        "type": "boolean",
+        "label": "Show country code beside bar icon when connected",
+        "defaultValue": true
+      },
+      {
+        "key": "connectedIconTint",
+        "type": "enum",
+        "label": "Connected icon color role (follows active theme)",
+        "options": [
+          "accent",
+          "foreground",
+          "semantic"
+        ],
+        "defaultValue": "accent"
+      },
+      {
+        "key": "showNotifications",
+        "type": "boolean",
+        "label": "Show desktop notifications on connect, disconnect, and errors",
+        "defaultValue": true
+      },
+      {
+        "key": "bandwidthPolling",
+        "type": "boolean",
+        "label": "Show live traffic speed while panel is open",
+        "defaultValue": true
+      },
+      {
+        "key": "autoRefreshServers",
+        "type": "boolean",
+        "label": "Automatically refresh server loads in the background",
+        "defaultValue": true
+      }
+    ]
+  }
+}

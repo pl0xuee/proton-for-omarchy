@@ -282,5 +282,6 @@
   "update.localCommand": "Polecenie aktualizacji",
   "upgrade.body": "Przejdź na VPN Plus, aby uzyskać każdy kraj oraz serwery Secure Core, P2P i streamingowe.",
   "upgrade.seePlans": "Zobacz plany",
-  "settings.version": "Proton for Omarchy %1"
+  "settings.version": "Proton for Omarchy %1",
+  "notify.startupFailed": "Proton VPN nie mógł połączyć się przy logowaniu"
 }

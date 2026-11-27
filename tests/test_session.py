@@ -81,6 +81,80 @@ class SessionTests(unittest.TestCase):
         with self.assertRaises(ProtocolError):
             asyncio.run(self.client.measure_latency(["CH#1"]))
 
+    def test_cancel_before_connect_keeps_live_connection(self):
+        class Connecting:
+            pass
+
+        class Connected:
+            pass
+
+        class Connector:
+            current_state = Connected()
+            disconnects = 0
+
+            async def disconnect(self):
+                Connector.disconnects += 1
+
+        class States:
+            pass
+        States.Connecting = Connecting
+        self.client.connector = Connector()
+        self.client.mods = {"states": States}
+        asyncio.run(self.client.settle_after_abort())  # cancelled during resolve / network wait
+        self.assertEqual(Connector.disconnects, 0)
+        self.client._connect_started = True
+        asyncio.run(self.client.settle_after_abort())  # cancelled after connector.connect began
+        self.assertEqual(Connector.disconnects, 1)
+        self.assertFalse(self.client._connect_started)
+        Connector.current_state = Connecting()
+        asyncio.run(self.client.settle_after_abort())
+        self.assertEqual(Connector.disconnects, 2)
+
+    def test_interface_skips_kill_switch_dummies(self):
+        from telemetry import detect_interface
+        for name in ("pvpnksintrf0", "ipv6leakintrf0", "proton0"):
+            os.makedirs(os.path.join(self.tmp.name, "net", name))
+        self.assertEqual(detect_interface("", os.path.join(self.tmp.name, "net")), "proton0")
+        os.rmdir(os.path.join(self.tmp.name, "net", "proton0"))
+        self.assertEqual(detect_interface("", os.path.join(self.tmp.name, "net")), "")
+
+    def test_wait_for_network(self):
+        import proton_client
+        from server_index import Record
+        rec = Record("CH#1", "CH", "CH", "Switzerland", "Switzerland", "Zurich", 10, 1.0, 2, True, 0,
+                     exit_ips={"192.0.2.1": "192.0.2.2"})
+        self.client.index.by_name = {"CH#1": rec}
+        probed = []
+
+        async def refused(ip, port):
+            probed.append((ip, port))
+            raise OSError("network unreachable")
+
+        class Writer:
+            def close(self):
+                pass
+
+        async def accepted(ip, port):
+            probed.append((ip, port))
+            if len(probed) < 3:
+                raise OSError("network unreachable")
+            return None, Writer()
+
+        old = (proton_client.NETWORK_WAIT, proton_client.NETWORK_PROBE_INTERVAL, asyncio.open_connection)
+        proton_client.NETWORK_WAIT, proton_client.NETWORK_PROBE_INTERVAL = 0.05, 0.01
+        try:
+            asyncio.open_connection = accepted  # network comes up on the third try
+            asyncio.run(self.client._wait_for_network("ch#1"))
+            self.assertEqual(probed[0], ("192.0.2.1", 443))  # only the Proton entry IP
+            self.assertEqual(len(probed), 3)
+            asyncio.open_connection = refused
+            with self.assertRaises(ProtocolError) as ctx:
+                asyncio.run(self.client._wait_for_network("CH#1"))
+            self.assertEqual(ctx.exception.code, "offline")
+            asyncio.run(self.client._wait_for_network("XX#9"))  # unknown server: nothing to wait on
+        finally:
+            proton_client.NETWORK_WAIT, proton_client.NETWORK_PROBE_INTERVAL, asyncio.open_connection = old
+
 
 if __name__ == "__main__":
     unittest.main()

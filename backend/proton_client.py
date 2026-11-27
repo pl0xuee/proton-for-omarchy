@@ -29,6 +29,12 @@ from updates import plugin_version
 log = logging.getLogger("proton-for-omarchy.client")
 
 CONNECT_TIMEOUT = 40.0
+# Connect at login: wait this long for the network (DHCP, Wi-Fi) to come up
+# before handing over to Proton, whose own reachability check gives up at once.
+NETWORK_WAIT = 60.0
+SERVER_LIST_STARTUP_WAIT = 10.0
+NETWORK_PROBE_TIMEOUT = 2.0
+NETWORK_PROBE_INTERVAL = 2.0
 DISCONNECT_TIMEOUT = 20.0
 FIDO2_TIMEOUT = 120.0
 MAX_DNS = 10
@@ -163,6 +169,25 @@ class _Fido2Interaction:
             return None
 
 
+def _split_config(st, mode: str):
+    """Split tunneling rules for one mode. 5.x keeps them in a config_by_mode
+    dict; 6.x has fixed `exclude` and `include` groups."""
+    by_mode = getattr(st, "config_by_mode", None)
+    if isinstance(by_mode, dict):
+        return by_mode.get(mode)
+    return getattr(st, mode, None) if mode in ("exclude", "include") else None
+
+
+def _set_custom_dns(settings, custom_dns_cls, enabled: bool, entries) -> None:
+    """6.x settings groups are read-only slots edited in place; 5.x replaced
+    the whole CustomDNS object."""
+    try:
+        settings.custom_dns = custom_dns_cls(enabled=enabled, ip_list=list(entries))
+    except (AttributeError, TypeError):
+        settings.custom_dns.enabled = bool(enabled)
+        settings.custom_dns.ip_list = tuple(entries)
+
+
 class ProtonClient:
     def __init__(self, emit: Callable[[str, Any], None], profiles):
         self.emit = emit
@@ -188,6 +213,7 @@ class ProtonClient:
         self._session_task: asyncio.Task | None = None
         self.history_enabled = True
         self._connect_task: asyncio.Task | None = None
+        self._connect_started = False
         self._fido2_task: asyncio.Task | None = None
         self._fido2_cancel: threading.Event | None = None
         self._pin_future: asyncio.Future | None = None
@@ -273,7 +299,10 @@ class ProtonClient:
     async def _after_login(self, initial: bool = False) -> None:
         refresher = self.api.refresher
         try:
-            server_list = await refresher.get_up_to_date_server_list()
+            fetch = refresher.get_up_to_date_server_list()
+            # At login the network may still be coming up; don't hold startup
+            # (and connect-at-login) hostage to a slow fetch, use the cache.
+            server_list = await (asyncio.wait_for(fetch, SERVER_LIST_STARTUP_WAIT) if initial else fetch)
             self._rebuild_index(server_list)
         except Exception as exc:  # noqa: BLE001 - offline start keeps whatever cache exists
             log.warning("server list refresh failed: %s", _error_text(exc))
@@ -283,7 +312,10 @@ class ProtonClient:
         refresher.set_server_loads_updated_callback(self._on_servers_changed)
         refresher.set_error_callback(self._on_refresher_error)
         await self._apply_refresher()
-        await self._load_settings_cache()
+        try:
+            await self._load_settings_cache()
+        except Exception as exc:  # noqa: BLE001 - settings are reloaded on demand; never abort startup
+            log.warning("settings load failed: %s", _error_text(exc))
 
     # The refresher keeps server loads, client config and the VPN certificate
     # fresh. With autoRefreshServers off it still runs while a connection is up
@@ -738,15 +770,42 @@ class ProtonClient:
         task = self._connect_task
         return task is not None and not task.done()
 
-    async def connect(self, target: dict) -> dict:
+    async def connect(self, target: dict, wait_for_network: bool = False) -> dict:
         self._connect_task = asyncio.current_task()
         try:
-            return await self._connect(target)
+            return await self._connect(target, wait_for_network)
         finally:
             if self._connect_task is asyncio.current_task():
                 self._connect_task = None
 
-    async def _connect(self, target: dict) -> dict:
+    async def _wait_for_network(self, name: str) -> None:
+        """Block until the server's entry IP answers on 443, for up to NETWORK_WAIT.
+
+        Right after login the wired or Wi-Fi link often has no address yet, and
+        Proton then reports a Timeout without trying. Only the Proton server
+        about to be used is contacted.
+        """
+        rec = self.index.by_name.get(name.upper())
+        try:
+            ip = str(ipaddress.ip_address(sorted(rec.exit_ips)[0])) if rec and rec.exit_ips else ""
+        except ValueError:
+            ip = ""
+        if not ip:
+            return
+        deadline = time.monotonic() + NETWORK_WAIT
+        while True:
+            try:
+                _, writer = await asyncio.wait_for(asyncio.open_connection(ip, 443), NETWORK_PROBE_TIMEOUT)
+                writer.close()
+                return
+            except (OSError, asyncio.TimeoutError):
+                pass
+            if time.monotonic() >= deadline:
+                raise ProtocolError("offline", "No network connection yet")
+            await asyncio.sleep(NETWORK_PROBE_INTERVAL)
+
+    async def _connect(self, target: dict, wait_for_network: bool = False) -> dict:
+        self._connect_started = False
         self._require_login()
         target = dict(target)
         exclude = ""
@@ -756,6 +815,8 @@ class ProtonClient:
         if self.index.country_count == 0 and self.api.server_list is not None:
             self._rebuild_index(self.api.server_list)
         logical, resolved = self._resolve(target, exclude)
+        if wait_for_network:
+            await self._wait_for_network(logical.name)
         refresher = self.api.refresher
         try:
             await refresher.update_certificate_if_necessary()
@@ -769,6 +830,7 @@ class ProtonClient:
         waiter = asyncio.ensure_future(self._wait_state({2}, CONNECT_TIMEOUT, old_conn))
         try:
             await asyncio.sleep(0)
+            self._connect_started = True
             await self.connector.connect(vpn_server, protocol=settings.protocol)
             state = await waiter
         except asyncio.TimeoutError as exc:
@@ -841,7 +903,13 @@ class ProtonClient:
         return {"cancelled": True}
 
     async def settle_after_abort(self) -> None:
-        await self._safe_disconnect()
+        # Only tear down what this connect started; a cancel during resolve or
+        # the network wait must not drop the connection that is already up.
+        started, self._connect_started = self._connect_started, False
+        connecting = isinstance(self.connector.current_state, self.mods["states"].Connecting) \
+            if self.connector and "states" in self.mods else False
+        if started or connecting:
+            await self._safe_disconnect()
 
     async def _safe_disconnect(self) -> None:
         try:
@@ -900,7 +968,7 @@ class ProtonClient:
         st = s.features.split_tunneling
 
         def cfg(mode: str) -> dict:
-            c = st.config_by_mode.get(mode)
+            c = _split_config(st, mode)
             return {"apps": list(getattr(c, "app_paths", []) or []), "ips": list(getattr(c, "ip_ranges", []) or [])}
 
         mode = st.mode.value if hasattr(st.mode, "value") else str(st.mode)
@@ -957,7 +1025,7 @@ class ProtonClient:
         if key == "recommended":
             # Proton's own shipped defaults for this plan. Saved DNS servers and
             # split tunneling rules are kept but switched off, so nothing is lost.
-            d = type(settings).default(tier)
+            d = self._default_settings(type(settings), tier)
             before = (settings.protocol, settings.ipv6, bool(settings.custom_dns.enabled))
             if d.protocol in [p["key"] for p in self.protocols()]:
                 settings.protocol = d.protocol
@@ -968,7 +1036,7 @@ class ProtonClient:
             # Telemetry and crash reports are privacy choices: never re-enable them here.
             for attr in ("netshield", "moderate_nat", "vpn_accelerator", "port_forwarding"):
                 setattr(settings.features, attr, getattr(d.features, attr))
-            settings.custom_dns = self.mods["CustomDNS"](enabled=False, ip_list=settings.custom_dns.ip_list)
+            _set_custom_dns(settings, self.mods["CustomDNS"], False, settings.custom_dns.ip_list)
             st.enabled = False
             after = (settings.protocol, settings.ipv6, False)
             reconnect_keys = {k for k, b, a in zip(("protocol", "ipv6", "custom_dns"), before, after) if b != a}
@@ -997,7 +1065,8 @@ class ProtonClient:
                 needs_disconnect = True
             settings.killswitch = value
         elif key == "custom_dns":
-            settings.custom_dns = self._custom_dns(value)
+            enabled, entries = self._custom_dns(value)
+            _set_custom_dns(settings, self.mods["CustomDNS"], enabled, entries)
         elif key == "split_tunneling":
             enabled = self._apply_split_tunneling(st, value)
             if enabled and int(settings.killswitch) > 0:
@@ -1039,6 +1108,20 @@ class ProtonClient:
             raise ProtocolError("bad_param", "Value must be true or false")
         return value
 
+    def _default_settings(self, cls, tier: int):
+        """Proton's shipped defaults for this plan (5.x: Settings.default,
+        6.x: empty sparse settings resolved through set_defaults)."""
+        if hasattr(cls, "default"):
+            return cls.default(tier)
+        d = cls.from_dict({})
+        try:
+            from proton.vpn.core.protun_default import is_default_for_free_users
+            protun = is_default_for_free_users(self.api._registry, self.api.feature_flags)
+        except Exception:  # noqa: BLE001 - older library or no session yet
+            protun = any(p["group"] == "protun" for p in self.protocols())
+        d.set_defaults(tier, protun)
+        return d
+
     def _custom_dns(self, value: Any):
         if not isinstance(value, dict):
             raise ProtocolError("bad_param", "custom_dns must be an object")
@@ -1057,7 +1140,7 @@ class ProtonClient:
         enabled = self._bool(value.get("enabled", False))
         if enabled and not entries:
             raise ProtocolError("bad_param", "Add at least one DNS server first")
-        return self.mods["CustomDNS"](enabled=enabled, ip_list=entries)
+        return enabled, entries
 
     def _apply_split_tunneling(self, st, value: Any) -> bool:
         if not isinstance(value, dict):
@@ -1066,15 +1149,20 @@ class ProtonClient:
         if mode not in ("exclude", "include"):
             raise ProtocolError("bad_param", "Mode must be exclude or include")
         enabled = self._bool(value.get("enabled", st.enabled))
-        current = st.config_by_mode.get(mode)
+        current = _split_config(st, mode)
         apps = value.get("apps", list(getattr(current, "app_paths", []) or []))
         ips = value.get("ips", list(getattr(current, "ip_ranges", []) or []))
         stored = set()
-        for cfg in st.config_by_mode.values():
-            stored.update(str(p) for p in (getattr(cfg, "app_paths", []) or []))
+        for other in ("exclude", "include"):
+            stored.update(str(p) for p in (getattr(_split_config(st, other), "app_paths", []) or []))
         apps, nets = split_tunnel.validate_rules(apps, ips, stored)
         mode_enum = self.mods["SplitTunnelingMode"](mode)
-        st.config_by_mode[mode] = self.mods["SplitTunnelingConfig"](mode=mode_enum, app_paths=apps, ip_ranges=nets)
+        if hasattr(st, "config_by_mode"):  # proton-vpn-api-core 5.x
+            st.config_by_mode[mode] = self.mods["SplitTunnelingConfig"](mode=mode_enum, app_paths=apps,
+                                                                        ip_ranges=nets)
+        else:  # 6.x: fixed exclude/include groups, edited in place
+            current.app_paths = tuple(apps)
+            current.ip_ranges = tuple(nets)
         st.mode = mode_enum
         st.enabled = enabled
         return enabled

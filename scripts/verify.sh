@@ -24,7 +24,8 @@ if [ -x "$QMLLINT" ] && [ -d "$SHELL_DIR" ]; then
   ln -s "$SHELL_DIR" "$root/qs"   # import path shim, outside the repo
   out=$("$QMLLINT" -I "$root" ./*.qml components/*.qml 2>&1 \
     | grep -E '^(Warning|Error)' \
-    | grep -vE 'on type "QObject"|\[unqualified\]|\[import\]' || true)
+    | grep -vE 'on type "QObject"|\[unqualified\]|\[import\]' \
+    | grep -v 'var declaration in block scope is hoisted' || true)  # Qt 6.12 style hint, not a bug
   rm -rf "$root"
   if [ -n "$out" ]; then echo "$out"; status=1; else echo "qmllint: clean"; fi
 else

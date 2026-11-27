@@ -43,6 +43,17 @@ class ProfileStoreTests(unittest.TestCase):
         self.assertEqual(store.favorites, [])
         self.assertTrue(os.path.exists(self.path + ".corrupt"))
 
+    def test_unreadable_file_is_kept(self):
+        os.makedirs(os.path.dirname(self.path))
+        with open(self.path, "w") as fh:
+            json.dump({"favorites": []}, fh)
+        from unittest import mock
+        with mock.patch("builtins.open", side_effect=PermissionError("denied")):
+            store = ProfileStore(self.path)
+        self.assertEqual(store.favorites, [])
+        self.assertTrue(os.path.exists(self.path))
+        self.assertFalse(os.path.exists(self.path + ".corrupt"))
+
     def test_invalid_entries_dropped(self):
         os.makedirs(os.path.dirname(self.path))
         with open(self.path, "w") as fh:

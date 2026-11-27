@@ -125,6 +125,7 @@
   "notify.disconnected": "Proton VPN disconnected",
   "notify.disconnectedBody": "Traffic is no longer protected by the VPN",
   "notify.error": "Proton VPN connection problem",
+  "notify.startupFailed": "Proton VPN could not connect at login",
   "profiles.namePlaceholder": "Profile name",
   "profiles.rename": "Rename (n)",
   "profiles.renameTitle": "Rename profile",

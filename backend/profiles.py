@@ -101,12 +101,15 @@ class ProfileStore:
                 raw = json.load(fh)
         except FileNotFoundError:
             raw = {}
-        except (OSError, ValueError, RecursionError):
-            # Corrupt or unreadable: keep a copy for the user, start clean.
+        except (ValueError, RecursionError):
+            # Corrupt: keep a copy for the user, start clean.
             try:
                 os.replace(self.path, self.path + ".corrupt")
             except OSError:
                 pass
+            raw = {}
+        except OSError:
+            # Unreadable right now (permissions, I/O): leave the file alone.
             raw = {}
         if not isinstance(raw, dict):
             raw = {}

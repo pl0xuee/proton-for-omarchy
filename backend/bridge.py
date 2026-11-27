@@ -27,7 +27,8 @@ log = protocol.install_redacting_logger()
 # Commands that change VPN/account/settings state run one at a time.
 SERIALIZED = {"connect", "disconnect", "reconnect", "set_setting", "auth_login", "auth_2fa_totp",
               "auth_2fa_fido2_start", "auth_logout", "auth_refresh_account", "refresh_servers"}
-CLIPBOARD_MAX = 256
+CLIPBOARD_MAX = 256  # per line
+CLIPBOARD_TOTAL_MAX = 2048  # whole copy (diagnostics are several lines)
 
 
 
@@ -118,7 +119,7 @@ class Bridge:
         if cmd == "get_snapshot":
             return await c.snapshot()
         if cmd == "connect":
-            return await c.connect(protocol.connect_target(p))
+            return await c.connect(protocol.connect_target(p), protocol.get_bool(p, "waitForNetwork"))
         if cmd == "disconnect":
             return await c.disconnect()
         if cmd == "reconnect":
@@ -212,13 +213,13 @@ class Bridge:
             self.profiles.dismiss_update(protocol.get_str(p, "version", required=True, max_len=16))
             return {"dismissed": True}
         if cmd == "copy_clipboard":
-            return await self.copy_clipboard(protocol.get_str(p, "text", required=True, max_len=CLIPBOARD_MAX))
+            return await self.copy_clipboard(protocol.get_str(p, "text", required=True, max_len=CLIPBOARD_TOTAL_MAX))
         raise ProtocolError("unknown_command", "Unknown command")
 
     async def copy_clipboard(self, text: str) -> dict:
         # Keep line breaks (diagnostics are multi-line); drop other control characters.
         text = "\n".join(protocol.clean_text(line, CLIPBOARD_MAX) for line in text.splitlines())
-        text = text.strip()[:CLIPBOARD_MAX]
+        text = text.strip()[:CLIPBOARD_TOTAL_MAX]
         if not text:
             raise ProtocolError("bad_param", "Nothing to copy")
         exe = shutil.which("wl-copy")

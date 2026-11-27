@@ -313,7 +313,7 @@ Item {
              (server && server.name ? server.name : "") + (where ? " · " + where : ""), false)
     } else if (next === "disconnected" && prev === "connected" && _desired !== "connected" && !switching) {
       notify(strings.t("notify.disconnected", "Proton VPN disconnected"), strings.t("notify.disconnectedBody", "Traffic is no longer protected by the VPN"), false)
-    } else if (next === "error") {
+    } else if (next === "error" && !_startupConnecting) {
       notify(strings.t("notify.error", "Proton VPN connection problem"), errorMessage, true)
     }
   }
@@ -331,19 +331,28 @@ Item {
     toastTimer.restart()
   }
 
-  function connectTarget(target, label, done) {
+  function connectTarget(target, label, done, waitForNetwork) {
     if (!loggedIn) return
+    if (!waitForNetwork) _cancelStartupConnect()  // the user took over
     _desired = "connected"
     pendingLabel = label || ""
     actionError = ""
-    request("connect", target, function(ok, data, error) {
+    var params = target
+    if (waitForNetwork) {
+      params = {}
+      for (var k in target) params[k] = target[k]
+      params.waitForNetwork = true
+    }
+    // Waiting for the network can take up to a minute before connecting starts.
+    request("connect", params, function(ok, data, error) {
       pendingLabel = ""
       if (!ok) {
-        _desired = ""
+        // A superseded request replies "cancelled"; whoever superseded it owns _desired now.
+        if (!error || error.code !== "cancelled") _desired = ""
         if (error && error.code === "upgrade_required" && !(done && done(false, error))) offerUpgrade(Model.sanitizeText(error.message || "", 120))
         else if (error && error.code !== "cancelled" && !(done && done(false, error))) _actionFailed(error)
       } else if (done) done(true, null)
-    }, 60000)
+    }, waitForNetwork ? 150000 : 60000)
   }
 
   // ------------------------------------------------- connect on startup
@@ -357,8 +366,18 @@ Item {
   property bool _startupChecked: false
   property int _startupAttempts: 0
   property bool _startupUseFastest: false
-  onStartupConnectChanged: _maybeStartupConnect()
-  onLoggedInChanged: _maybeStartupConnect()
+  // True while connect-at-login is still trying: its failures retry quietly
+  // instead of raising a critical notification.
+  property bool _startupConnecting: false
+  onStartupConnectChanged: { if (startupConnect === "off") _cancelStartupConnect(); else _maybeStartupConnect() }
+  onLoggedInChanged: { if (!loggedIn) _cancelStartupConnect(); else _maybeStartupConnect() }
+
+  // Any explicit user action (connect, disconnect, cancel, sign out, option off)
+  // ends connect-at-login: a pending quiet retry must never override it.
+  function _cancelStartupConnect() {
+    startupRetry.stop()
+    _startupConnecting = false
+  }
 
   function _maybeStartupConnect() {
     if (_startupChecked || startupConnect === "off" || !snapshotLoaded || !loggedIn) return
@@ -367,19 +386,23 @@ Item {
     // from the next login. Five minutes covers a slow keyring unlock at login.
     if (Date.now() - _startedAtMs > 300000) return
     request("claim_boot_autoconnect", {}, function(ok, data) {
-      if (!ok || !data || !data.claimed) return
-      if (realState !== "disconnected") return  // already connected, e.g. by Proton itself
+      if (!ok) { _startupChecked = false; return }  // bridge not answering yet: try again on the next snapshot
+      if (!data || !data.claimed) return
+      if (realState !== "disconnected" && realState !== "error") return  // already connected, e.g. by Proton itself
       _startupConnectNow()
     }, 10000)
   }
 
   function _startupConnectNow() {
-    if (!loggedIn || (realState !== "disconnected" && realState !== "error")) return
+    if (!loggedIn || (realState !== "disconnected" && realState !== "error")) { _startupConnecting = false; return }
     _startupAttempts++
     var last = startupConnect === "last" && recents.length > 0 && !_startupUseFastest ? recents[0] : null
     var target = last ? last.target : { targetType: "fastest" }
     var label = last ? last.label : strings.t("home.fastest", "Fastest server")
+    _startupConnecting = true
     connectTarget(target, label, function(ok, error) {
+      // Only errors from the startup request itself are quiet, not ones in the gaps between retries.
+      _startupConnecting = false
       if (ok) return false
       // The network is often not up yet right after login: retry quietly.
       var code = error ? String(error.code || "") : ""
@@ -391,8 +414,11 @@ Item {
       }
       var fatal = /^(upgrade_required|not_found|no_server|maintenance|not_logged_in|cancelled)$/.test(code)
       if (!fatal && _startupAttempts < 4) { startupRetry.restart(); return true }
+      if (code !== "cancelled")
+        notify(strings.t("notify.startupFailed", "Proton VPN could not connect at login"),
+               error && error.message ? error.message : "", true)
       return false
-    })
+    }, true)
   }
 
   Timer {
@@ -412,6 +438,7 @@ Item {
   function quickConnect() { connectTarget({ targetType: "fastest" }, strings.t("home.fastest", "Fastest server")) }
 
   function disconnect() {
+    _cancelStartupConnect()
     _desired = "disconnected"
     actionError = ""
     request("disconnect", {}, function(ok, data, error) {
@@ -420,6 +447,7 @@ Item {
   }
 
   function cancelConnect() {
+    _cancelStartupConnect()
     _desired = "disconnected"
     request("cancel_connect", {}, function(ok) { if (!ok) _desired = "" }, 30000)
   }
@@ -496,7 +524,7 @@ Item {
     if (id) profile.id = id
     request("save_profile", { profile: profile }, function(ok, data, error) {
       if (!ok) _actionFailed(error)
-      else showToast(strings.t("profiles.saved", "Saved as “%1”").replace("%1", Model.sanitizeText(name, 80)))
+      else showToast(strings.t("profiles.saved", "Saved as “%1”").arg(Model.sanitizeText(name, 80)))
       if (callback) callback(ok, data, error)
     })
   }

@@ -42,7 +42,7 @@ Panel {
   Binding { target: root.sharedService; property: "active"; value: true; when: root.sharedService !== null }
   Binding { target: root.sharedService; property: "settings"; value: root.settings; when: root.sharedService !== null }
 
-  Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
+  Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
   function t(key, fallback) { return strings.t(key, fallback) }
 
   ThemePalette { id: themePalette }
@@ -251,7 +251,7 @@ Panel {
     }
   }
 
-  ShellIpc {
+  Commons.ShellIpc {
     target: root.ipcTarget
     function open(): void { root.open() }
     function close(): void { root.close() }

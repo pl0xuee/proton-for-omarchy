@@ -29,7 +29,7 @@ Item {
   readonly property bool isConnected: svc && svc.connectionState === "connected"
   // sheet: "" | "split" | "dns"
   property string sheet: ""
-  readonly property Item activeSheet: sheet === "split" ? splitSheet : (sheet === "dns" ? dnsSheet : null)
+  readonly property var activeSheet: sheet === "split" ? splitSheet : (sheet === "dns" ? dnsSheet : null)
   readonly property bool reorderable: sheet === "dns" && dnsSheet.reorderable
   readonly property bool editing: protocolDropdown.popupOpen || (activeSheet !== null && activeSheet.editing === true)
 
@@ -54,7 +54,8 @@ Item {
   Timer {
     interval: 500
     repeat: true
-    running: Object.keys(root.notes).length > 0
+    // Only timed notes expire; sticky ones ("Reconnect to apply") need no ticking.
+    running: Object.keys(root.notes).some(function(k) { return root.notes[k].until > 0 })
     onTriggered: {
       var now = Date.now(), n = {}, changed = false
       for (var k in root.notes) {

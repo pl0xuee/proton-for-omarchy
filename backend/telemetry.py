@@ -10,7 +10,7 @@ import os
 import time
 
 SYS_NET = "/sys/class/net"
-CANDIDATES = ("proton0", "pvpn0", "tun0", "ipv6leakintrf0")
+CANDIDATES = ("proton0", "pvpn0", "tun0")
 
 
 def _read_int(path: str) -> int | None:
@@ -33,7 +33,7 @@ def detect_interface(preferred: str = "", sys_net: str = SYS_NET) -> str:
         listing = []
     names.extend(n for n in listing if n.startswith("proton") or n.startswith("pvpn"))
     for name in names:
-        if name in ("ipv6leakintrf0",):
+        if "intrf" in name:  # kill switch / IPv6 leak dummies, not the tunnel
             continue
         if os.path.isdir(os.path.join(sys_net, name)):
             return name

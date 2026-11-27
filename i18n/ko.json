@@ -267,5 +267,6 @@
   "update.localCommand": "업데이트 명령",
   "upgrade.body": "VPN Plus로 업그레이드하면 모든 국가, Secure Core, P2P, 스트리밍 서버를 사용할 수 있습니다.",
   "upgrade.seePlans": "요금제 보기",
-  "settings.version": "Proton for Omarchy %1"
+  "settings.version": "Proton for Omarchy %1",
+  "notify.startupFailed": "로그인 시 Proton VPN에 연결하지 못했습니다"
 }
